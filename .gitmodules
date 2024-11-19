@@ -1,0 +1,23 @@
+[submodule "components/ergo_pkg_py"]
+	path = components/ergo_pkg_py
+	url = https://github.com/JOiiNT-LAB/ergo_pkg_py.git
+[submodule "components/hri_body_detect"]
+	path = components/hri_body_detect
+	url = https://github.com/JOiiNT-LAB/hri_body_detect.git
+	branch = humble-devel
+[submodule "components/hri_face_detect"]
+	path = components/hri_face_detect
+	url = https://github.com/JOiiNT-LAB/hri_face_detect.git
+	branch = humble-devel
+[submodule "components/hri_rviz"]
+	path = components/hri_rviz
+	url = https://github.com/JOiiNT-LAB/hri_rviz.git
+	branch = humble-devel
+[submodule "components/human_description"]
+	path = components/human_description
+	url = https://github.com/JOiiNT-LAB/human_description.git
+	branch = humble-devel
+[submodule "components/jntlb_fwk_msgs"]
+	path = components/jntlb_fwk_msgs
+	url = https://github.com/JOiiNT-LAB/jntlb_fwk_msgs.git
+	branch = jazzy-devel

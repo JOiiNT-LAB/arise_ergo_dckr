@@ -1,0 +1,27 @@
+services:
+  superelectric:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HOME: /home/ros_user
+        ROS_WS: /home/ros_user/catkin_ws
+    image: arise
+    container_name: arise
+    privileged: true
+    network_mode: "host"
+    environment:
+      - DISPLAY=$DISPLAY                                                                    # DO NOT TOUCH IT
+    volumes:
+      - "$HOME/.Xauthority:/root/.Xauthority:rw"                                            # DO NOT TOUCH IT
+      - "/tmp/.X11-unix:/tmp/.X11-unix"                                                     # DO NOT TOUCH IT 
+      - "./components/hri_face_detect:/home/ros_user/catkin_ws/src/hri_face_detect"         # DO NOT TOUCH IT 
+      - "./components/hri_body_detect:/home/ros_user/catkin_ws/src/hri_body_detect"         # DO NOT TOUCH IT 
+      - "./components/hri_rviz:/home/ros_user/catkin_ws/src/hri_rviz"                       # DO NOT TOUCH IT 
+      - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"     # DO NOT TOUCH IT 
+      - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"     # DO NOT TOUCH IT 
+      - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"     # DO NOT TOUCH IT 
+    stdin_open: true
+    devices:
+      - /dev/video*
+    tty: true
