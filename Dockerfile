@@ -1,6 +1,7 @@
 # This is an auto generated Dockerfile for ros:desktop-full
 # generated from docker_images/create_ros_image.Dockerfile.em
 FROM osrf/ros:humble-desktop-full
+# FROM eprosima/vulcanexus:humble-desktop
 
 ENV TZ=Europe/Rome
 
