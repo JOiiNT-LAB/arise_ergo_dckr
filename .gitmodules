@@ -1,6 +1,3 @@
-[submodule "components/ergo_pkg_py"]
-	path = components/ergo_pkg_py
-	url = https://github.com/JOiiNT-LAB/ergo_pkg_py.git
 [submodule "components/hri_body_detect"]
 	path = components/hri_body_detect
 	url = https://github.com/JOiiNT-LAB/hri_body_detect.git
