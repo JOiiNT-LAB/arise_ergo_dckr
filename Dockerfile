@@ -1,7 +1,7 @@
 # This is an auto generated Dockerfile for ros:desktop-full
 # generated from docker_images/create_ros_image.Dockerfile.em
-FROM osrf/ros:humble-desktop-full
-# FROM eprosima/vulcanexus:humble-desktop
+# FROM osrf/ros:jazzy-desktop-full
+FROM eprosima/vulcanexus:humble-desktop
 
 ENV TZ=Europe/Rome
 
@@ -29,7 +29,6 @@ RUN apt update && apt upgrade -y && apt install -y \
     nano \
     htop \
     iftop \
-    mlocate \
     net-tools \
     iputils-ping \
     build-essential \
@@ -48,7 +47,7 @@ RUN apt update && apt upgrade -y && apt install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install transform3d google google-cloud mediapipe==0.10.0 protobuf==3.19.4 ikpy lap
+RUN pip install transform3d google google-cloud mediapipe==0.10.9 protobuf==3.19.4 ikpy lap
 
 RUN mkdir -p $ROS_WS/src && mv /root/.bashrc /home/ros_user
 

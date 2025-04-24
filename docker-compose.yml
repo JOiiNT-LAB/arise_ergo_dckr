@@ -1,13 +1,13 @@
 services:
-  superelectric:
+  arise_ergo_dckr:
     build:
       context: .
       dockerfile: Dockerfile
       args:
         HOME: /home/ros_user
         ROS_WS: /home/ros_user/catkin_ws
-    image: arise
-    container_name: arise
+    image: arise_ergo_dckr
+    container_name: arise_ergo_dckr
     privileged: true
     network_mode: "host"
     environment:
