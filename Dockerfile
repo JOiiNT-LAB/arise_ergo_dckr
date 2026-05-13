@@ -47,8 +47,8 @@ RUN apt update && apt upgrade -y && apt install -y \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install transform3d google google-cloud mediapipe==0.10.9 protobuf==3.19.4 ikpy lap
-
+# RUN pip install transform3d google google-cloud mediapipe==0.10.9 protobuf==3.19.4 ikpy lap
+RUN pip install "numpy==1.23.5" transform3d google google-cloud mediapipe==0.10.9 protobuf==3.19.4 ikpy lap requests
 RUN mkdir -p $ROS_WS/src && mv /root/.bashrc /home/ros_user
 
 ENV HOME $HOME

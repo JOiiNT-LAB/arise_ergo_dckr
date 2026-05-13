@@ -37,7 +37,7 @@ aggiungi
         - fixed frame metti body default
     
 terminale4: 
-ros2 run ergo_pkg_py ergodata_calculator_node
+ros2 run ergo_pkg_py ergodata_calculator 
 
 terminale 5
 ros2 run ergo_pkg_py rula_calculator
@@ -45,7 +45,6 @@ ros2 run ergo_pkg_py rula_calculator
 terminale 6
 ros2 topic echo /ergo_data # per verifica 
 python3 src/ergo_pkg_py/ergo_pkg_py/orion_bridge.py
-
 
 
 
@@ -109,7 +108,8 @@ Clicca Save & Test → deve dire "Database Connection OK"
 2. Crea il dashboard
 + → New dashboard → Add visualization → seleziona il datasource CrateDB appena creato
 Switcha in modalità Code, incolla:
-sqlSELECT
+sql
+SELECT
   to_timestamp(time_index / 1000.0) AS "time",
   neck_angle,
   trunk_angle,

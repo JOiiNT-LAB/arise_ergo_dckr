@@ -1,4 +1,97 @@
+# services:
+#   arise_ergo_dckr:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#       args:
+#         HOME: /home/ros_user
+#         ROS_WS: /home/ros_user/catkin_ws
+#     image: arise_ergo_dckr
+#     container_name: arise_ergo_dckr
+#     privileged: true
+#     network_mode: "host"
+#     environment:
+#       - DISPLAY=$DISPLAY                                                                          # DO NOT TOUCH IT
+#       - QT_X11_NO_MITSHM=1
+#       - XAUTHORITY=/root/.Xauthority  # Aggiungi questa per la grafica
+#     volumes:
+#       - "$HOME/.Xauthority:/root/.Xauthority:rw"                                                  # DO NOT TOUCH IT
+#       - "/tmp/.X11-unix:/tmp/.X11-unix"                                                           # DO NOT TOUCH IT 
+#       - "/dev:/dev"                   # <--- AGGIUNGI QUESTO (fondamentale per RealSense)
+#       - "/sys:/sys"                   # <--- AGGIUNGI QUESTO (permette a librealsense di leggere i metadati)
+#       - "./components/hri_face_detect:/home/ros_user/catkin_ws/src/hri_face_detect"               # DO NOT TOUCH IT 
+#       - "./components/hri_body_detect:/home/ros_user/catkin_ws/src/hri_body_detect"               # DO NOT TOUCH IT 
+#       - "./components/hri_rviz:/home/ros_user/catkin_ws/src/hri_rviz"                             # DO NOT TOUCH IT 
+#       - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"           # DO NOT TOUCH IT 
+#       - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"                 # DO NOT TOUCH IT 
+#       - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"                       # DO NOT TOUCH IT 
+
+#     stdin_open: true
+#     devices:
+#       - /dev/video*
+#     tty: true
+# arise_ergo_dckr/docker-compose.yml
+
 services:
+
+  # ── FIWARE STACK ───────────────────────────────────
+
+  mongodb:
+    image: mongo:4.4
+    container_name: mongodb
+    network_mode: host
+    command: --bind_ip_all
+    volumes:
+      - mongodb:/data
+
+  orion:
+    image: fiware/orion-ld:1.8.0-PRE-1645
+    container_name: orion
+    privileged: true
+    network_mode: host
+    ipc: host
+    depends_on:
+      - mongodb
+    command: -dbhost 127.0.0.1 -logLevel DEBUG -wip dds -mongocOnly -configFile /root/config-dds.json
+    volumes:
+      - ../ergo_dev/conf/orionld/config-dds.json:/root/config-dds.json:ro
+
+  crate-db:
+    image: crate:5.6.5
+    container_name: crate-db
+    network_mode: host
+    command: crate -Cdiscovery.type=single-node -Chttp.cors.allow-origin="*"
+    environment:
+      - CRATE_HEAP_SIZE=2g
+
+  quantumleap:
+    build: ../ergo_dev/build/quantumleap
+    container_name: quantumleap
+    network_mode: host
+    depends_on:
+      - crate-db
+    environment:
+      - CRATE_HOST=127.0.0.1
+      - AUTOMATIC_SUBSCRIPTION=true
+    volumes:
+      - ../ergo_dev/conf/quantumleap/subscriptions:/src/ngsi-timeseries-api/src/subscriptions
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    network_mode: host
+    depends_on:
+      - crate-db
+    environment:
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
+    volumes:
+      - ../ergo_dev/conf/grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ../ergo_dev/conf/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ../ergo_dev/conf/grafana/alerting:/etc/grafana/provisioning/alerting
+      - ../ergo_dev/conf/grafana/dashboards:/var/lib/grafana/dashboards
+
+  # ── ARISE ERGONOMICS ───────────────────────────────
+
   arise_ergo_dckr:
     build:
       context: .
@@ -6,27 +99,31 @@ services:
       args:
         HOME: /home/ros_user
         ROS_WS: /home/ros_user/catkin_ws
-    image: arise_ergo_dckr
     container_name: arise_ergo_dckr
     privileged: true
-    network_mode: "host"
+    network_mode: host
+    ipc: host
+    depends_on:
+      - orion
+      - quantumleap
     environment:
-      - DISPLAY=$DISPLAY                                                                          # DO NOT TOUCH IT
+      - DISPLAY=$DISPLAY
+      - ROS_DOMAIN_ID=26
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - QT_X11_NO_MITSHM=1
-      - XAUTHORITY=/root/.Xauthority  # Aggiungi questa per la grafica
     volumes:
-      - "$HOME/.Xauthority:/root/.Xauthority:rw"                                                  # DO NOT TOUCH IT
-      - "/tmp/.X11-unix:/tmp/.X11-unix"                                                           # DO NOT TOUCH IT 
-      - "/dev:/dev"                   # <--- AGGIUNGI QUESTO (fondamentale per RealSense)
-      - "/sys:/sys"                   # <--- AGGIUNGI QUESTO (permette a librealsense di leggere i metadati)
-      - "./components/hri_face_detect:/home/ros_user/catkin_ws/src/hri_face_detect"               # DO NOT TOUCH IT 
-      - "./components/hri_body_detect:/home/ros_user/catkin_ws/src/hri_body_detect"               # DO NOT TOUCH IT 
-      - "./components/hri_rviz:/home/ros_user/catkin_ws/src/hri_rviz"                             # DO NOT TOUCH IT 
-      - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"           # DO NOT TOUCH IT 
-      - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"                 # DO NOT TOUCH IT 
-      - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"                       # DO NOT TOUCH IT 
-
-    stdin_open: true
+      - "$HOME/.Xauthority:/root/.Xauthority:rw"
+      - "/tmp/.X11-unix:/tmp/.X11-unix:rw"
+      - "./components/hri_face_detect:/home/ros_user/catkin_ws/src/hri_face_detect"
+      - "./components/hri_body_detect:/home/ros_user/catkin_ws/src/hri_body_detect"
+      - "./components/hri_rviz:/home/ros_user/catkin_ws/src/hri_rviz"
+      - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"
+      - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"
+      - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"
     devices:
-      - /dev/video*
+      - /dev/video0
+    stdin_open: true
     tty: true
+
+volumes:
+  mongodb: ~
