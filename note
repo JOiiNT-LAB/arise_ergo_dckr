@@ -43,4 +43,85 @@ terminale 5
 ros2 run ergo_pkg_py rula_calculator
 
 terminale 6
-ros2 topic echo /ergo_data 
+ros2 topic echo /ergo_data # per verifica 
+python3 src/ergo_pkg_py/ergo_pkg_py/orion_bridge.py
+
+
+
+
+
+terminale nuovo
+cd ergo_dev 
+docker compose up -d
+viene lanciato tutto lo stack fiware e vanno senza problemi.
+
+
+
+
+
+bisogna creare la sottoscrizione
+curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
+  -H "Content-Type: application/ld+json" \
+  -d '{
+    "id": "urn:ngsi-ld:Subscription:ErgoData",
+    "type": "Subscription",
+    "entities": [{"type": "ErgoData"}],
+    "notification": {
+      "endpoint": {
+        "uri": "http://127.0.0.1:8668/v2/notify",
+        "accept": "application/json"
+      }
+    },
+    "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"]
+  }'
+
+
+
+La tabella si chiama etergodata (non mtergodata). Verifica i dati:
+
+
+curl -s "http://localhost:4200/_sql" \
+  -H "Content-Type: application/json" \
+  -d '{"stmt": "SELECT * FROM etergodata ORDER BY time_index DESC LIMIT 3"}' \
+  | python3 -m json.tool
+
+
+
+
+GRAFANA
+
+1 dati ci sono tutti! Ora configura Grafana.
+Setup Grafana
+Vai su http://localhost:3000 → admin / admin
+1. Aggiungi il datasource CrateDB
+Connections → Data sources → Add new → PostgreSQL
+Campo Valore
+
+Host localhost:5432
+Database doc
+User crate 
+Password(lascia vuoto)
+TLS/SSL disable
+Clicca Save & Test → deve dire "Database Connection OK"
+
+
+
+2. Crea il dashboard
++ → New dashboard → Add visualization → seleziona il datasource CrateDB appena creato
+Switcha in modalità Code, incolla:
+sqlSELECT
+  to_timestamp(time_index / 1000.0) AS "time",
+  neck_angle,
+  trunk_angle,
+  trunk_bending_angle,
+  left_arm_angle,
+  right_arm_angle,
+  left_elbow_angle,
+  right_elbow_angle,
+  left_shoulder_angle,
+  right_shoulder_angle,
+  speed
+FROM etergodata
+WHERE to_timestamp(time_index / 1000.0) >= $__timeFrom()
+  AND to_timestamp(time_index / 1000.0) <= $__timeTo()
+ORDER BY time_index ASC
