@@ -1,0 +1,46 @@
+- senza la cache rebuild docekr
+docker compose build --no-cache
+docker compose build
+- attiviamo il containter
+xhost +local:docker
+docker compose up -d
+docker exec -it arise_ergo_dckr bash
+
+
+
+
+
+apt update
+rosdep update
+rosdep install --from-paths src --ignore-src -y
+
+colcon build --symlink-install
+source install/setup.bash
+
+
+
+Terminale 1 : lancia il nodo della camera
+ros2 launch realsense2_camera rs_launch.py
+
+
+Terminale 2 : llancia il nodo che traccia la poszione del corpo
+ros2 launch hri_body_detect hri_body_detect_with_args.launch.py
+
+
+
+
+Terminale3 : lancia rviz2
+rviz2 
+aggiungi
+        - humans e metti nel topic camera/color/ 
+        - skelton display    
+        - fixed frame metti body default
+    
+terminale4: 
+ros2 run ergo_pkg_py ergodata_calculator_node
+
+terminale 5
+ros2 run ergo_pkg_py rula_calculator
+
+terminale 6
+ros2 topic echo /ergo_data 
