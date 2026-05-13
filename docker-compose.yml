@@ -54,7 +54,7 @@ services:
       - mongodb
     command: -dbhost 127.0.0.1 -logLevel DEBUG -wip dds -mongocOnly -configFile /root/config-dds.json
     volumes:
-      - ../ergo_dev/conf/orionld/config-dds.json:/root/config-dds.json:ro
+      - ./conf/orionld/config-dds.json:/root/config-dds.json:ro   # era ../ergo_dev/conf/...
 
   crate-db:
     image: crate:5.6.5
@@ -65,7 +65,7 @@ services:
       - CRATE_HEAP_SIZE=2g
 
   quantumleap:
-    build: ../ergo_dev/build/quantumleap
+    build: ./build/quantumleap   
     container_name: quantumleap
     network_mode: host
     depends_on:
@@ -74,7 +74,7 @@ services:
       - CRATE_HOST=127.0.0.1
       - AUTOMATIC_SUBSCRIPTION=true
     volumes:
-      - ../ergo_dev/conf/quantumleap/subscriptions:/src/ngsi-timeseries-api/src/subscriptions
+      - ./conf/quantumleap/subscriptions:/src/ngsi-timeseries-api/src/subscriptions
 
   grafana:
     image: grafana/grafana:latest
@@ -85,10 +85,10 @@ services:
     environment:
       - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
     volumes:
-      - ../ergo_dev/conf/grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
-      - ../ergo_dev/conf/grafana/datasources:/etc/grafana/provisioning/datasources
-      - ../ergo_dev/conf/grafana/alerting:/etc/grafana/provisioning/alerting
-      - ../ergo_dev/conf/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./conf/grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./conf/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./conf/grafana/alerting:/etc/grafana/provisioning/alerting
+      - ./conf/grafana/dashboards:/var/lib/grafana/dashboards
 
   # ── ARISE ERGONOMICS ───────────────────────────────
 

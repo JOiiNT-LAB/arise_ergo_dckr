@@ -1,0 +1,12 @@
+apiVersion: 1
+datasources:
+  - name: CrateDB
+    type: grafana-postgresql-datasource
+    url: 127.0.0.1:5432
+    user: crate
+    secureJsonData:
+      password: ''
+    jsonData:
+      database: doc
+      sslmode: 'disable'
+      timescaledb: false
