@@ -213,7 +213,7 @@ Click **Save & Test** — you should see **"Database Connection OK"**.
 
 ```sql
 SELECT
-  to_timestamp(time_index / 1000.0) AS "time",
+  time_index AS "time",
   neck_angle,
   trunk_angle,
   trunk_bending_angle,
@@ -224,10 +224,13 @@ SELECT
   left_shoulder_angle,
   right_shoulder_angle,
   speed
-FROM etergodata
-WHERE to_timestamp(time_index / 1000.0) >= $__timeFrom()
-  AND to_timestamp(time_index / 1000.0) <= $__timeTo()
-ORDER BY time_index ASC
+FROM
+  etergodata
+WHERE
+  time_index >= $__timeFrom()
+  AND time_index <= $__timeTo()
+ORDER BY
+  time_index ASC
 ```
 
 4. Set the time range in the top-right corner to match your recording session and click **Apply**.
