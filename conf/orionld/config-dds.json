@@ -2,7 +2,7 @@
     "dds": {
       "ddsmodule": {
         "dds": {
-          "domain": 0,
+          "domain": 26,
           "allowlist": [
             {
               "name": "*"
@@ -21,26 +21,23 @@
             "history-depth": 10
           }
         },
-        "ddsenabler": null,
+        "ddsenabler": {
+          "initial-publish-wait": 500
+        },
         "specs": {
           "threads": 12,
           "logging": {
-            "stdout": false,
+            "stdout": true,
             "verbosity": "info"
           }
         }
       },
       "ngsild": {
         "topics": {
-          "rt/cmd_vel": {
-            "entityType": "Robot",
-            "entityId": "urn:ngsi-ld:robot:1",
-            "attribute": "velocityCommand"
-          },
-          "rt/pose": {
-            "entityType": "Robot",
-            "entityId": "urn:ngsi-ld:robot:1",
-            "attribute": "pose"
+          "rt/ergo_data": {
+            "entityType": "ErgoData",
+            "entityId": "urn:ngsi-ld:ErgoData:001",
+            "attribute": "ergoData"
           }
         }
       }

@@ -15,6 +15,7 @@ A complete stack for real-time human ergonomic assessment using a RealSense came
 7. [NGSI-LD Subscription](#7-ngsi-ld-subscription)
 8. [Verify Data in CrateDB](#8-verify-data-in-cratedb)
 9. [Grafana Dashboard](#9-grafana-dashboard)
+10. [Appendix: Why We Don't Use Orion-LD's Native DDS Module](#appendix-why-we-dont-use-orion-lds-native-dds-module)
 
 ---
 
@@ -131,6 +132,8 @@ ros2 topic echo /ergo_data
 # Send ergonomic data to the FIWARE Orion-LD context broker
 python3 src/ergo_pkg_py/ergo_pkg_py/orion_bridge.py
 ```
+
+> **Why a bridge node and not Orion-LD's native DDS module?** We evaluated routing `/ergo_data` straight into Orion-LD via its embedded [DDS-Enabler](https://github.com/eProsima/DDS-Enabler)-based DDS module ([conf/orionld/config-dds.json](conf/orionld/config-dds.json), still present but currently unused). It requires resolving the DDS message's structure at runtime via XTypes, and that resolution never completes between Vulcanexus Humble's Fast DDS (2.6.1) and the Fast DDS bundled in Orion-LD — confirmed on two Orion-LD releases, and affecting even built-in ROS2 types, not just `ErgoData`. `orion_bridge.py` sidesteps this entirely: it's a ROS2 node using the same Fast DDS 2.6.1 as the rest of the pipeline, so no dynamic type discovery is ever needed.
 
 ---
 
@@ -263,3 +266,52 @@ Orion-LD (FIWARE)
       ▼
 QuantumLeap  ──►  CrateDB  ──►  Grafana
 ```
+
+---
+
+## Appendix: Why We Don't Use Orion-LD's Native DDS Module
+
+Before settling on `orion_bridge.py`, we tried to route `/ergo_data` straight into Orion-LD without any bridge process, using Orion-LD's experimental DDS module, which is built on eProsima's [DDS-Enabler](https://github.com/eProsima/DDS-Enabler). This section documents that investigation and why it was abandoned, so nobody re-attempts it without knowing the outcome.
+
+### The idea
+
+Orion-LD ships with a work-in-progress DDS module (enabled via the `-wip dds` CLI flag) that can act as a DDS participant, subscribe directly to DDS topics, and map them to NGSI-LD entities/attributes via a JSON config file (kept at [conf/orionld/config-dds.json](conf/orionld/config-dds.json) for reference, currently unused). In theory this removes the need for any custom code: ROS2 already publishes `/ergo_data` as a plain DDS topic (`rt/ergo_data`) under the hood, so Orion-LD could listen to it natively.
+
+### What we configured
+
+- `domain: 26` in `config-dds.json`, matching `ROS_DOMAIN_ID=26` used by the ROS2 container.
+- A topic mapping `rt/ergo_data → ErgoData.ergoData` (the DDS module maps one DDS topic to one NGSI-LD attribute — it cannot split a single topic's fields into multiple flat attributes the way `orion_bridge.py` does).
+- `ddsenabler.initial-publish-wait: 500`, matching the schema documented in the upstream [DDS-Enabler reference config](https://github.com/eProsima/DDS-Enabler/blob/main/ddsenabler/DDS_ENABLER_CONFIGURATION.json) (the value shipped with the Orion-LD image was `null`).
+
+### What worked
+
+- DDS-level discovery: the Orion-LD DDS participant reliably found the ROS2 participants on domain 26 and matched the `rt/ergo_data` topic (confirmed via `ros2 topic pub` no longer blocking on "Waiting for at least 1 matching subscription(s)...").
+- Topic/type name recognition: the resulting NGSI-LD entity correctly showed `"ddsTypeName": "jntlb_fwk_msgs::msg::dds_::ErgoData_"`.
+
+### What didn't work
+
+The actual field values never arrived. The `ergoData` attribute stayed permanently at:
+
+```json
+"ergoData": {
+    "type": "Property",
+    "value": "uninitialized",
+    "ddsTypeName": { "type": "Property", "value": "jntlb_fwk_msgs::msg::dds_::ErgoData_" }
+}
+```
+
+Orion-LD's logs repeated the same warning for every single published sample, instead of progressing to a value write:
+
+```
+W: ... Handler.cpp[127]: add_data: Schema for type jntlb_fwk_msgs::msg::dds_::ErgoData_ not available.
+```
+
+We tested this on **two Orion-LD releases** — the pinned `1.8.0-PRE-1645` and a freshly pulled `1.13.0-PRE-1858` — with identical results.
+
+### Root cause
+
+The DDS module needs to resolve the DDS message's full structure *at runtime* via XTypes (since it has no message definitions compiled in — that's what makes it generic). That resolution never completes between **Vulcanexus Humble's Fast DDS (2.6.1)**, used by the whole ROS2 pipeline, and the (much newer) Fast DDS bundled inside the Orion-LD image. Crucially, the exact same "Schema ... not available" warning also appeared for **built-in ROS2 types** (`rmw_dds_common::msg::dds_::ParticipantEntitiesInfo_`, `rcl_interfaces::msg::dds_::ParameterEvent_`), not just our custom `ErgoData` message — proving this is a structural Fast DDS version/XTypes incompatibility, not a config mistake or a limitation specific to our message type.
+
+### Decision
+
+`orion_bridge.py` sidesteps this entirely: it's a plain ROS2 node using the exact same Fast DDS 2.6.1 as the rest of the pipeline, so no dynamic type discovery ever happens — it's statically compiled in, like any other ROS2 node talking to another ROS2 node. `config-dds.json` and the DDS module are left disabled (`-wip dds` removed from the `orion` service command in [docker-compose.yml](docker-compose.yml)) but the config file is kept in the repo for reference, in case a future Orion-LD/Fast-DDS release resolves the XTypes gap and this is worth revisiting.
