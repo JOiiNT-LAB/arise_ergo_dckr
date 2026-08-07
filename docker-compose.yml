@@ -90,6 +90,7 @@ services:
       - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"
       - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"
       - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"
+      - "./launch:/home/ros_user/catkin_ws/launch"
     devices:
       - /dev/video0
     stdin_open: true
