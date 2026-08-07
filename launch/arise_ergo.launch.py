@@ -2,9 +2,8 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import EnvironmentVariable, PathJoinSubstitution
 from launch_ros.actions import Node
 
 
@@ -42,12 +41,9 @@ def generate_launch_description():
         name='rula_calculator',
         output='screen')
 
-    # orion_bridge.py is not registered as a console_scripts entry point in
-    # ergo_pkg_py/setup.py, so it can't be launched as a standard Node yet.
-    orion_bridge = ExecuteProcess(
-        cmd=['python3', PathJoinSubstitution([
-            EnvironmentVariable('ROS_WS'),
-            'src', 'ergo_pkg_py', 'ergo_pkg_py', 'orion_bridge.py'])],
+    orion_bridge = Node(
+        package='ergo_pkg_py',
+        executable='orion_bridge',
         name='orion_bridge',
         output='screen')
 
