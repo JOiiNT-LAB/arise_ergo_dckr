@@ -68,6 +68,7 @@ services:
       args:
         HOME: /home/ros_user
         ROS_WS: /home/ros_user/catkin_ws
+        ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-26}
     container_name: arise_ergo_dckr
     privileged: true
     network_mode: host
@@ -77,7 +78,7 @@ services:
       - quantumleap
     environment:
       - DISPLAY=$DISPLAY
-      - ROS_DOMAIN_ID=26
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-26}
       - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       - QT_X11_NO_MITSHM=1
     volumes:
