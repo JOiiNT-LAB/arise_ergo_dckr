@@ -110,7 +110,13 @@ Sending the subscription request..
 
 ========================================================
 "
+# Non-recursive: drop .json subscription files directly here, not in subfolders.
 subscription_dir="/src/ngsi-timeseries-api/src/subscriptions"
+
+if ! ls "$subscription_dir"/*.json >/dev/null 2>&1; then
+    echo 'No subscription files found in '"$subscription_dir"' — skipping automatic subscription.'
+    exit 0
+fi
 
 for subscription_file in "$subscription_dir"/*.json; do
     if [ -e "$subscription_file" ]; then
