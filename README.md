@@ -8,20 +8,28 @@ A complete stack for real-time human ergonomic assessment using a RealSense came
 
 1. [Docker Setup](#1-docker-setup)
 2. [ROS2 Workspace Setup](#2-ros2-workspace-setup)
-3. [Launching the ROS2 Stack](#3-launching-the-ros2-stack)
-4. [Visualization with RViz2](#4-visualization-with-rviz2)
-5. [Ergonomic Data Nodes](#5-ergonomic-data-nodes)
-6. [FIWARE Stack](#6-fiware-stack)
-7. [NGSI-LD Subscription](#7-ngsi-ld-subscription)
-8. [Verify Data in CrateDB](#8-verify-data-in-cratedb)
-9. [Grafana Dashboard](#9-grafana-dashboard)
-10. [Appendix: Why We Don't Use Orion-LD's Native DDS Module](#appendix-why-we-dont-use-orion-lds-native-dds-module)
+3. [Launching the ROS2 Pipeline](#3-launching-the-ros2-pipeline)
+4. [FIWARE Stack](#4-fiware-stack)
+5. [NGSI-LD Subscription](#5-ngsi-ld-subscription)
+6. [Verify Data in CrateDB](#6-verify-data-in-cratedb)
+7. [Grafana Dashboard](#7-grafana-dashboard)
+8. [Appendix: Why We Don't Use Orion-LD's Native DDS Module](#appendix-why-we-dont-use-orion-lds-native-dds-module)
 
 ---
 
 ## 1. Docker Setup
 
-Build the Docker image from scratch (no cache), then start the container:
+> **Prerequisites**: an X11 session must be available on the host (this is a desktop/workstation setup, not a headless server) — `$DISPLAY` and `$HOME` are used by `docker-compose.yml` to forward the display into the container for GUI tools like RViz2. On a headless or SSH-only host, the RViz2 node started by [section 3](#3-launching-the-ros2-pipeline)'s launch file will fail silently with no clear error.
+
+Fetch the ROS2 package submodules under `components/` (required before the first build — an empty `components/` tree will make later steps fail with confusing errors):
+
+```bash
+git submodule update --init --recursive
+```
+
+Copy `.env.example` to `.env` if you need to change `ROS_DOMAIN_ID` (default `26`) — it's the single source of truth read by both `docker-compose.yml` and the Dockerfile build, so it only needs to be set in one place. (`conf/orionld/config-dds.json`'s own `domain: 26` is a separate, currently-unused reference config — see the [Appendix](#appendix-why-we-dont-use-orion-lds-native-dds-module) — and is intentionally not wired to `.env`.)
+
+Build the Docker image from scratch (no cache), then start the whole stack — both the ROS2 container and the FIWARE services (Orion-LD, CrateDB, QuantumLeap, Grafana) are defined in the same `docker-compose.yml`, so this one command brings up everything:
 
 ```bash
 # Full rebuild without cache
@@ -65,92 +73,36 @@ source install/setup.bash
 
 ---
 
-## 3. Launching the ROS2 Stack
+## 3. Launching the ROS2 Pipeline
 
-Each of the following commands runs in a **separate terminal** (all inside the container).
-
-### Terminal 1 — RealSense Camera Node
+Everything below used to require 6 separate terminals (camera, body detection, RViz2 with 3 manual panel setup steps, 2 calculator nodes, and the Orion bridge). It's now a single command, run inside the container:
 
 ```bash
-ros2 launch realsense2_camera rs_launch.py
+ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py
 ```
 
-Starts the Intel RealSense camera driver and publishes RGB, depth, and pointcloud topics.
+This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in order:
 
-### Terminal 2 — Body Tracking Node
+1. **RealSense camera** (`realsense2_camera`'s `rs_launch.py`) — publishes RGB/depth/pointcloud topics.
+2. **Body tracking** (`hri_body_detect`'s `hri_body_detect_with_args.launch.py`) — detects skeleton keypoints from the camera stream.
+3. **RViz2**, pre-loaded with [components/human_description/config/human.rviz](components/human_description/config/human.rviz) — no manual panel setup needed. Note the Fixed Frame is `body_default` (the actual published frame name; the pipeline just calls it "body" informally).
+4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `/ergo_data`.
+5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on top of `/ergo_data`.
+6. **`orion_bridge.py`** — sends `/ergo_data` to the FIWARE Orion-LD context broker. (Not a registered `ros2 run` entry point yet, so the launch file invokes it directly via `python3`.)
 
-```bash
-ros2 launch hri_body_detect hri_body_detect_with_args.launch.py
-```
+> **Optional debug check**: `ros2 topic echo /ergo_data` in a separate terminal to inspect the live data without affecting the running pipeline.
 
-Detects human body keypoints from the camera stream and publishes skeleton data.
+> **Why a bridge node and not Orion-LD's native DDS module?** We evaluated routing `/ergo_data` straight into Orion-LD via its embedded [DDS-Enabler](https://github.com/eProsima/DDS-Enabler)-based DDS module ([conf/orionld/config-dds.json](conf/orionld/config-dds.json), still present but currently unused). It requires resolving the DDS message's structure at runtime via XTypes, and that resolution never completes between Vulcanexus Humble's Fast DDS (2.6.1) and the Fast DDS bundled in Orion-LD — confirmed on two Orion-LD releases, and affecting even built-in ROS2 types, not just `ErgoData`. `orion_bridge.py` sidesteps this entirely: it's a ROS2 node using the same Fast DDS 2.6.1 as the rest of the pipeline, so no dynamic type discovery is ever needed. See the [Appendix](#appendix-why-we-dont-use-orion-lds-native-dds-module) for the full investigation, including why aligning Fast DDS versions isn't a viable fix either.
 
 ---
 
-## 4. Visualization with RViz2
+## 4. FIWARE Stack
 
-### Terminal 3 — RViz2
-
-```bash
-rviz2
-```
-
-Once open, add the following displays in the RViz2 panel:
-
-| Display Type | Configuration |
-|---|---|
-| **Humans** | Set topic to `camera/color/` |
-| **Skeleton Display** | Add and enable |
-| **Fixed Frame** | Set to `body` (default) |
+Nothing to do here — the FIWARE stack (Orion-LD, CrateDB, QuantumLeap, Grafana) was already started by `docker compose up -d` in [section 1](#1-docker-setup), since all services live in this repo's own `docker-compose.yml`.
 
 ---
 
-## 5. Ergonomic Data Nodes
-
-### Terminal 4 — Ergo Data Calculator
-
-```bash
-ros2 run ergo_pkg_py ergodata_calculator
-```
-
-Computes joint angles (neck, trunk, arms, elbows, shoulders) and speed from the skeleton data.
-
-### Terminal 5 — RULA Calculator
-
-```bash
-ros2 run ergo_pkg_py rula_calculator
-```
-
-Runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on top of the computed angles.
-
-### Terminal 6 — Verify & Bridge
-
-```bash
-# Inspect the live ergo_data topic
-ros2 topic echo /ergo_data
-
-# Send ergonomic data to the FIWARE Orion-LD context broker
-python3 src/ergo_pkg_py/ergo_pkg_py/orion_bridge.py
-```
-
-> **Why a bridge node and not Orion-LD's native DDS module?** We evaluated routing `/ergo_data` straight into Orion-LD via its embedded [DDS-Enabler](https://github.com/eProsima/DDS-Enabler)-based DDS module ([conf/orionld/config-dds.json](conf/orionld/config-dds.json), still present but currently unused). It requires resolving the DDS message's structure at runtime via XTypes, and that resolution never completes between Vulcanexus Humble's Fast DDS (2.6.1) and the Fast DDS bundled in Orion-LD — confirmed on two Orion-LD releases, and affecting even built-in ROS2 types, not just `ErgoData`. `orion_bridge.py` sidesteps this entirely: it's a ROS2 node using the same Fast DDS 2.6.1 as the rest of the pipeline, so no dynamic type discovery is ever needed.
-
----
-
-## 6. FIWARE Stack
-
-From a **new terminal** on the host machine, start the FIWARE stack (Orion-LD, CrateDB, Grafana, etc.):
-
-```bash
-cd ergo_dev
-docker compose up -d
-```
-
-All services in the FIWARE stack will start automatically.
-
----
-
-## 7. NGSI-LD Subscription
+## 5. NGSI-LD Subscription
 
 Create a subscription so Orion-LD notifies the QuantumLeap/CrateDB sink whenever `ErgoData` entities are updated:
 
@@ -173,7 +125,7 @@ curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
 
 ---
 
-## 8. Verify Data in CrateDB
+## 6. Verify Data in CrateDB
 
 > **Note:** The table is named `etergodata` (not `mtergodata`).
 
@@ -188,55 +140,11 @@ curl -s "http://localhost:4200/_sql" \
 
 ---
 
-## 9. Grafana Dashboard
+## 7. Grafana Dashboard
 
-### Access Grafana
+The CrateDB data source and the `AriseDashboard` dashboard are both auto-provisioned (see `conf/grafana/datasources/datasource.yaml` and `conf/grafana/dashboards/AriseDashboard.json`, mounted in `docker-compose.yml`) — no manual setup needed.
 
-Open [http://localhost:3000](http://localhost:3000) and log in with `admin` / `admin`.
-
-### Add the CrateDB Data Source
-
-Go to **Connections → Data sources → Add new → PostgreSQL** and fill in the following:
-
-| Field | Value |
-|---|---|
-| Host | `localhost:5432` |
-| Database | `doc` |
-| User | `crate` |
-| Password | *(leave empty)* |
-| TLS/SSL | `disable` |
-
-Click **Save & Test** — you should see **"Database Connection OK"**.
-
-### Create the Dashboard
-
-1. Click **+** → **New dashboard** → **Add visualization**
-2. Select the **CrateDB** data source you just added
-3. Switch to **Code** mode and paste the following query:
-
-```sql
-SELECT
-  time_index AS "time",
-  neck_angle,
-  trunk_angle,
-  trunk_bending_angle,
-  left_arm_angle,
-  right_arm_angle,
-  left_elbow_angle,
-  right_elbow_angle,
-  left_shoulder_angle,
-  right_shoulder_angle,
-  speed
-FROM
-  etergodata
-WHERE
-  time_index >= $__timeFrom()
-  AND time_index <= $__timeTo()
-ORDER BY
-  time_index ASC
-```
-
-4. Set the time range in the top-right corner to match your recording session and click **Apply**.
+Open [http://localhost:3000](http://localhost:3000), log in with `admin` / `admin`, and open **AriseDashboard** from the dashboard list. Set the time range in the top-right corner to match your recording session.
 
 ---
 
@@ -315,3 +223,14 @@ The DDS module needs to resolve the DDS message's full structure *at runtime* vi
 ### Decision
 
 `orion_bridge.py` sidesteps this entirely: it's a plain ROS2 node using the exact same Fast DDS 2.6.1 as the rest of the pipeline, so no dynamic type discovery ever happens — it's statically compiled in, like any other ROS2 node talking to another ROS2 node. `config-dds.json` and the DDS module are left disabled (`-wip dds` removed from the `orion` service command in [docker-compose.yml](docker-compose.yml)) but the config file is kept in the repo for reference, in case a future Orion-LD/Fast-DDS release resolves the XTypes gap and this is worth revisiting.
+
+### Update (2026-07-31): why "just pin the same Fast DDS version" doesn't work either
+
+A natural follow-up idea is to fix the version mismatch directly — rebuild Orion-LD's DDS stack pinned to Fast DDS 2.6.1 (matching Vulcanexus Humble) instead of whatever newer version it bundles. We investigated this and it is a **dead end**, for reasons more fundamental than a simple version bump:
+
+- `fiware/orion-ld:1.13.0-PRE-1858` is not a tagged release at all — it corresponds to an ad-hoc CI build off `develop` for PR [#1858](https://github.com/FIWARE/context.Orion-LD/pull/1858) ("Removed two macros from CMakeLists.txt.orion"). Its DDS stack is built by `docker/build-ubi/07.install-fastdds.sh`, which pins: Fast-CDR v2.3.0, **Fast-DDS v3.3.0**, dev-utils v1.3.0, DDS-Pipe v1.3.0, and `DDS-Enabler` on branch `append_action_infix`.
+- Fast DDS 3.x (Aug 2024) is a breaking rewrite of 2.x (namespace `fastrtps`→`fastdds`, Fast-CDR v2 required, Dynamic Types API rewritten, XTypes bumped to 1.3) — not a drop-in swap.
+- The blocker isn't just "which version to pick" — it's that **eProsima's DDS-Enabler, the actual component implementing the Orion-LD↔DDS bridge that `Handler.cpp` calls into, has never supported Fast DDS 2.x at any point in its history.** Its repo was created 2024-09-13, over a month *after* Fast DDS 3.0.0 shipped and more than two years after Fast DDS 2.6.1 (June 2022). Every commit and dependency pin in its history (`ddsenabler.repos`) targets Fast DDS 3.x branches/tags — tag `v1.0.0` (2025-08-19) explicitly pins Fast-DDS v3.3.0 / Fast-CDR v2.3.0, identical to what Orion-LD bundles today.
+- `dev-utils` and `DDS-Pipe` *did* once support Fast DDS 2.x (dev-utils v0.1.0, Oct 2022, pinned Fast-DDS v2.8.0; DDS-Pipe v0.2.0, Jul 2023, pinned Fast-DDS v2.11.0), so those two links in the chain aren't the problem. DDS-Enabler is.
+
+**Conclusion**: aligning Fast DDS versions would require writing a Fast-DDS-2.x-compatible version of DDS-Enabler from scratch (a new engineering effort against eProsima's old `fastrtps`-namespace API and XTypes 1.2), not a version pin or config change. This is out of scope here. **Do not re-attempt the native DDS module path** unless eProsima ships a DDS-Enabler release that targets Fast DDS 2.x, or the ROS2 side moves to a distro whose `rmw_fastrtps` supports Fast DDS 3.x (not the case for Humble, and not yet true for any released ROS2 distro as of this writing). `orion_bridge.py` remains the supported, permanent path.
