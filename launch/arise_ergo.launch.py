@@ -13,7 +13,7 @@ def generate_launch_description():
     use_rviz = DeclareLaunchArgument(
         'use_rviz',
         default_value='true',
-        description='Avvia RViz2 per la visualizzazione (richiede X11)')
+        description='Start RViz2 for visualization (requires X11)')
 
     realsense_camera = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -49,6 +49,18 @@ def generate_launch_description():
         name='rula_calculator',
         output='screen')
 
+    reba_calculator = Node(
+        package='ergo_pkg_py',
+        executable='reba_calculator',
+        name='reba_calculator',
+        output='screen')
+
+    ergo_alert = Node(
+        package='ergo_pkg_py',
+        executable='ergo_alert',
+        name='ergo_alert',
+        output='screen')
+
     orion_bridge = Node(
         package='ergo_pkg_py',
         executable='orion_bridge',
@@ -62,5 +74,7 @@ def generate_launch_description():
         rviz,
         ergodata_calculator,
         rula_calculator,
+        reba_calculator,
+        ergo_alert,
         orion_bridge,
     ])
