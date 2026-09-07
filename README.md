@@ -1,6 +1,20 @@
-# ARISE Ergo — ROS2 Ergonomic Analysis Pipeline
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/ARISE_logo-dark_mode.png">
+    <source media="(prefers-color-scheme: light)" srcset="images/ARISE_logo-light_mode.png">
+    <img alt="ARISE logo" src="images/ARISE_logo-light_mode.png" width="400">
+  </picture>
+</p>
+
+<h1 align="center">ARISE Ergo — ROS2 Ergonomic Analysis Pipeline</h1>
 
 A complete stack for real-time human ergonomic assessment using a RealSense camera, ROS2, FIWARE Orion-LD, CrateDB, and Grafana.
+
+---
+
+## About ARISE
+
+ARISE aims towards making industrial HRI more accessible and cost-effective, in particular in healthcare, intra-logistics and manufacturing sectors. These modules hope to present an integration between FIWARE Orion Context Broker and eProsima Vulcanexus to enable context-aware robotic and industrial applications, alongside ROS4HRI as an open-source ROS standard and a set of ROS packages to facilitate the development of Human-Robot Interaction (HRI) capabilities on robots.
 
 ---
 
@@ -234,3 +248,17 @@ A natural follow-up idea is to fix the version mismatch directly — rebuild Ori
 - `dev-utils` and `DDS-Pipe` *did* once support Fast DDS 2.x (dev-utils v0.1.0, Oct 2022, pinned Fast-DDS v2.8.0; DDS-Pipe v0.2.0, Jul 2023, pinned Fast-DDS v2.11.0), so those two links in the chain aren't the problem. DDS-Enabler is.
 
 **Conclusion**: aligning Fast DDS versions would require writing a Fast-DDS-2.x-compatible version of DDS-Enabler from scratch (a new engineering effort against eProsima's old `fastrtps`-namespace API and XTypes 1.2), not a version pin or config change. This is out of scope here. **Do not re-attempt the native DDS module path** unless eProsima ships a DDS-Enabler release that targets Fast DDS 2.x, or the ROS2 side moves to a distro whose `rmw_fastrtps` supports Fast DDS 3.x (not the case for Humble, and not yet true for any released ROS2 distro as of this writing). `orion_bridge.py` remains the supported, permanent path.
+
+---
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/EN_Co_fundedbytheEU_RGB_NEG.png">
+    <source media="(prefers-color-scheme: light)" srcset="images/EN_Co_fundedbytheEU_RGB_Monochrome.png">
+    <img alt="Co-funded by the European Union" src="images/EN_Co_fundedbytheEU_RGB_Monochrome.png" width="250">
+  </picture>
+</p>
+
+<p align="center"><sub>
+Funded by the European Union. Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or HADEA. Neither the European Union nor the granting authority can be held responsible for them.
+</sub></p>
