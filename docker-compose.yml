@@ -91,8 +91,10 @@ services:
       - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"
       - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"
       - "./launch:/home/ros_user/catkin_ws/launch"
-    devices:
-      - /dev/video0
+    # No explicit `devices:` entry: `privileged: true` above already exposes the
+    # host's /dev, so the RealSense is reachable either way. Naming /dev/video0
+    # here would make the container refuse to start on a machine with no camera
+    # attached — which is exactly the case arise_ergo_test.launch.py serves.
     stdin_open: true
     tty: true
 

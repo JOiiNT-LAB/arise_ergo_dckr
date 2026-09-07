@@ -1,6 +1,9 @@
 apiVersion: 1
 datasources:
+  # Fixed uid: the provisioned dashboards reference the data source by this uid,
+  # so it must not be left to Grafana's random generation.
   - name: CrateDB
+    uid: cratedb
     type: grafana-postgresql-datasource
     url: 127.0.0.1:5432
     user: crate
