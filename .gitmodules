@@ -14,10 +14,6 @@
 	path = components/human_description
 	url = https://github.com/JOiiNT-LAB/human_description.git
 	branch = humble-devel
-[submodule "components/jntlb_fwk_msgs"]
-	path = components/jntlb_fwk_msgs
-	url = https://github.com/JOiiNT-LAB/jntlb_fwk_msgs.git
-	branch = jazzy-devel
 [submodule "components/ergo_pkg_py"]
 	path = components/ergo_pkg_py
 	url = https://github.com/JOiiNT-LAB/ergo_pkg_py.git

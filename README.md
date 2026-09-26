@@ -127,15 +127,15 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_rviz:=false
 The pipeline follows [ROS4HRI (REP-155)](https://www.ros.org/reps/rep-0155.html), the HRI standard used across ARISE:
 
 - **From the standard** (as produced by `hri_body_detect`): body ids are listed on `/humans/bodies/tracked` (`hri_msgs/IdsList`); each body has a root tf frame `body_<body_id>` and one frame per URDF link, `<link>_<body_id>`.
-- **Our extension**: ROS4HRI defines no ergonomic messages, so the ergonomic topics live in the body namespace, next to the standard sub-topics (`skeleton2d`, `joint_states`, `roi`, …):
+- **Our extension**: ROS4HRI defines no ergonomic messages, so they are defined in the [`hri_ergonomics_msgs`](components/hri_ergonomics_msgs) package of this repository, and the ergonomic topics live in the body namespace, next to the standard sub-topics (`skeleton2d`, `joint_states`, `roi`, …):
 
 | Topic | Type | Publisher |
 |---|---|---|
-| `/humans/bodies/<body_id>/ergo_data` | `jntlb_fwk_msgs/ErgoData` | `ergodata_calculator` (10 Hz) |
-| `/humans/bodies/<body_id>/rula_score` | `jntlb_fwk_msgs/RULAScore` | `rula_calculator` |
-| `/humans/bodies/<body_id>/reba_score` | `jntlb_fwk_msgs/RebaScore` | `reba_calculator` |
-| `/humans/bodies/<body_id>/ergo_alert` | `jntlb_fwk_msgs/ErgoAlert` | `ergo_alert` (on level change) |
-| `/humans/bodies/<body_id>/ergo_advice` | `jntlb_fwk_msgs/ErgoAdvice` | `ergo_advisor` (optional) |
+| `/humans/bodies/<body_id>/ergo_data` | `hri_ergonomics_msgs/ErgoData` | `ergodata_calculator` (10 Hz) |
+| `/humans/bodies/<body_id>/rula_score` | `hri_ergonomics_msgs/RULAScore` | `rula_calculator` |
+| `/humans/bodies/<body_id>/reba_score` | `hri_ergonomics_msgs/RebaScore` | `reba_calculator` |
+| `/humans/bodies/<body_id>/ergo_alert` | `hri_ergonomics_msgs/ErgoAlert` | `ergo_alert` (on level change) |
+| `/humans/bodies/<body_id>/ergo_advice` | `hri_ergonomics_msgs/ErgoAdvice` | `ergo_advisor` (optional) |
 
 Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Header`: `frame_id` is the body root frame (`body_<body_id>`) and `stamp` is the time of the skeleton sample it was computed from — `ergodata_calculator` sets it from tf and every downstream node copies it, so a score or alert can be matched to the exact posture that produced it.
 
@@ -145,7 +145,7 @@ Body ids are transient tracks. Moving the topics to the person namespace (`/huma
 
 ### Local LLM advisor (optional)
 
-`ergo_advisor` turns each `ergo_alert` WARNING/CRITICAL event of a body into a short explanation and a corrective recommendation, published on `/humans/bodies/<body_id>/ergo_advice` (`jntlb_fwk_msgs/ErgoAdvice`). It picks the RULA partial scores that push the score up (e.g. trunk 4/6) and asks a local LLM served by [Ollama](https://ollama.com) to phrase them — nothing leaves the machine.
+`ergo_advisor` turns each `ergo_alert` WARNING/CRITICAL event of a body into a short explanation and a corrective recommendation, published on `/humans/bodies/<body_id>/ergo_advice` (`hri_ergonomics_msgs/ErgoAdvice`). It picks the RULA partial scores that push the score up (e.g. trunk 4/6) and asks a local LLM served by [Ollama](https://ollama.com) to phrase them — nothing leaves the machine.
 
 The LLM never computes or changes the scores: RULA/REBA stay deterministic. If the model is not running, times out or returns an unusable answer, the node publishes a template text instead (`generated_by_llm: false`), so the topic keeps working without the LLM.
 
@@ -195,7 +195,7 @@ Note the pipeline's convention: `left_arm_angle` is the angle between the upper 
 Because the fixture needs neither the camera nor RViz2, only two workspace packages have to be built for it:
 
 ```bash
-colcon build --symlink-install --packages-select jntlb_fwk_msgs ergo_pkg_py
+colcon build --symlink-install --packages-select hri_ergonomics_msgs ergo_pkg_py
 ```
 
 ---

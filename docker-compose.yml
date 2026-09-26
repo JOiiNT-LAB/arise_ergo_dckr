@@ -109,7 +109,7 @@ services:
       - "./components/hri_body_detect:/home/ros_user/catkin_ws/src/hri_body_detect"
       - "./components/hri_rviz:/home/ros_user/catkin_ws/src/hri_rviz"
       - "./components/human_description:/home/ros_user/catkin_ws/src/human_description"
-      - "./components/jntlb_fwk_msgs:/home/ros_user/catkin_ws/src/jntlb_fwk_msgs"
+      - "./components/hri_ergonomics_msgs:/home/ros_user/catkin_ws/src/hri_ergonomics_msgs"
       - "./components/ergo_pkg_py:/home/ros_user/catkin_ws/src/ergo_pkg_py"
       - "./launch:/home/ros_user/catkin_ws/launch"
     # No explicit `devices:` entry: `privileged: true` above already exposes the
