@@ -1,3 +1,6 @@
 .vscode/*.log
 __pycache__/
 *.pyc
+
+# Local documentation material (not versioned)
+documents/

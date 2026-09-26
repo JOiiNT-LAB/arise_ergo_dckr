@@ -29,8 +29,21 @@ def generate_launch_description():
         description='Start orion_bridge — set to false to test the ROS2 side '
                     'without the FIWARE stack running')
 
+    use_llm = DeclareLaunchArgument(
+        'use_llm',
+        default_value='false',
+        description='Start ergo_advisor, which explains alerts with a local LLM '
+                    '(needs the ollama service: docker compose --profile llm up -d)')
+
+    body_ids = DeclareLaunchArgument(
+        'body_ids',
+        default_value="['default']",
+        description="ROS4HRI body ids simulated by the fixture, e.g. \"['a', 'b']\" "
+                    "to test several people at once")
+
     fake_body = ExecuteProcess(
-        cmd=['python3', os.path.join(THIS_DIR, 'fake_body_publisher.py')],
+        cmd=['python3', os.path.join(THIS_DIR, 'fake_body_publisher.py'),
+             '--ros-args', '-p', ['body_ids:=', LaunchConfiguration('body_ids')]],
         name='fake_body_publisher',
         output='screen')
 
@@ -70,6 +83,13 @@ def generate_launch_description():
         name='ergo_alert',
         output='screen')
 
+    ergo_advisor = Node(
+        package='ergo_pkg_py',
+        executable='ergo_advisor',
+        name='ergo_advisor',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_llm')))
+
     orion_bridge = Node(
         package='ergo_pkg_py',
         executable='orion_bridge',
@@ -79,12 +99,15 @@ def generate_launch_description():
 
     return LaunchDescription([
         use_rviz,
+        use_llm,
         use_orion,
+        body_ids,
         fake_body,
         rviz,
         ergodata_calculator,
         rula_calculator,
         reba_calculator,
         ergo_alert,
+        ergo_advisor,
         orion_bridge,
     ])

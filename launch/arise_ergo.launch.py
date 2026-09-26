@@ -16,6 +16,12 @@ def generate_launch_description():
         default_value='true',
         description='Start RViz2 for visualization (requires X11)')
 
+    use_llm = DeclareLaunchArgument(
+        'use_llm',
+        default_value='false',
+        description='Start ergo_advisor, which explains alerts with a local LLM '
+                    '(needs the ollama service: docker compose --profile llm up -d)')
+
     realsense_camera = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(
@@ -64,6 +70,13 @@ def generate_launch_description():
         name='ergo_alert',
         output='screen')
 
+    ergo_advisor = Node(
+        package='ergo_pkg_py',
+        executable='ergo_advisor',
+        name='ergo_advisor',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('use_llm')))
+
     orion_bridge = Node(
         package='ergo_pkg_py',
         executable='orion_bridge',
@@ -72,6 +85,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         use_rviz,
+        use_llm,
         realsense_camera,
         body_detect,
         rviz,
@@ -79,5 +93,6 @@ def generate_launch_description():
         rula_calculator,
         reba_calculator,
         ergo_alert,
+        ergo_advisor,
         orion_bridge,
     ])

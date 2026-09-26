@@ -100,24 +100,64 @@ This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in ord
 1. **RealSense camera** (`realsense2_camera`'s `rs_launch.py`) — publishes RGB/depth/pointcloud topics.
 2. **Body tracking** (`hri_body_detect`'s `hri_body_detect_with_args.launch.py`) — detects skeleton keypoints from the camera stream.
 3. **RViz2**, pre-loaded with [components/human_description/config/human.rviz](components/human_description/config/human.rviz) — no manual panel setup needed. Note the Fixed Frame is `body_default` (the actual published frame name; the pipeline just calls it "body" informally).
-4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `/ergo_data`.
-5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `/ergo_data`, publishing `/rula_score`.
-6. **`reba_calculator`** — runs the REBA (Rapid Entire Body Assessment) scoring algorithm on `/ergo_data`, publishing `/reba_score`.
-7. **`ergo_alert`** — classifies `/rula_score` into alert levels and publishes `/ergo_alert` only when the level changes. Thresholds are node parameters (`warning_threshold`, default `5`; `critical_threshold`, default `7`).
-8. **`orion_bridge`** — sends the `/ergo_data` fields to the FIWARE Orion-LD context broker as the NGSI-LD entity `urn:ngsi-ld:ErgoData:001`.
+4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `ergo_data`.
+5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `ergo_data`, publishing `rula_score`.
+6. **`reba_calculator`** — runs the REBA (Rapid Entire Body Assessment) scoring algorithm on `ergo_data`, publishing `reba_score`.
+7. **`ergo_alert`** — classifies `rula_score` into alert levels and publishes `ergo_alert` only when the level changes. Thresholds are node parameters (`warning_threshold`, default `5`; `critical_threshold`, default `7`).
+8. **`orion_bridge`** — sends the `ergo_data` fields to the FIWARE Orion-LD context broker, one NGSI-LD entity per body: `urn:ngsi-ld:ErgoData:<body_id>`.
+
+Every ergonomic topic is per person, following the ROS4HRI conventions — see [ROS4HRI conventions](#ros4hri-conventions).
 
 Launch arguments:
 
 | Argument | Default | Effect |
 |---|---|---|
 | `use_rviz` | `true` | Set to `false` to skip RViz2 — required on headless hosts with no X11 session. |
+| `use_llm` | `false` | Set to `true` to start `ergo_advisor` (see [Local LLM advisor](#local-llm-advisor-optional)). |
 
 ```bash
 # Headless run, no visualization
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_rviz:=false
 ```
 
-> **Optional debug check**: `ros2 topic echo /ergo_data` (or `/rula_score`, `/reba_score`, `/ergo_alert`) in a separate terminal to inspect the live data without affecting the running pipeline.
+> **Optional debug check**: `ros2 topic echo /humans/bodies/default/ergo_data` (or `rula_score`, `reba_score`, `ergo_alert`) in a separate terminal to inspect the live data without affecting the running pipeline. `ros2 topic echo /humans/bodies/tracked` lists the body ids currently tracked.
+
+### ROS4HRI conventions
+
+The pipeline follows [ROS4HRI (REP-155)](https://www.ros.org/reps/rep-0155.html), the HRI standard used across ARISE:
+
+- **From the standard** (as produced by `hri_body_detect`): body ids are listed on `/humans/bodies/tracked` (`hri_msgs/IdsList`); each body has a root tf frame `body_<body_id>` and one frame per URDF link, `<link>_<body_id>`.
+- **Our extension**: ROS4HRI defines no ergonomic messages, so the ergonomic topics live in the body namespace, next to the standard sub-topics (`skeleton2d`, `joint_states`, `roi`, …):
+
+| Topic | Type | Publisher |
+|---|---|---|
+| `/humans/bodies/<body_id>/ergo_data` | `jntlb_fwk_msgs/ErgoData` | `ergodata_calculator` (10 Hz) |
+| `/humans/bodies/<body_id>/rula_score` | `jntlb_fwk_msgs/RULAScore` | `rula_calculator` |
+| `/humans/bodies/<body_id>/reba_score` | `jntlb_fwk_msgs/RebaScore` | `reba_calculator` |
+| `/humans/bodies/<body_id>/ergo_alert` | `jntlb_fwk_msgs/ErgoAlert` | `ergo_alert` (on level change) |
+| `/humans/bodies/<body_id>/ergo_advice` | `jntlb_fwk_msgs/ErgoAdvice` | `ergo_advisor` (optional) |
+
+Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. Note that `hri_body_detect` currently forces every track to the id `default`, so with the real camera only one person is tracked; the test fixture can simulate several (`body_ids` below).
+
+Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
+
+### Local LLM advisor (optional)
+
+`ergo_advisor` turns each `ergo_alert` WARNING/CRITICAL event of a body into a short explanation and a corrective recommendation, published on `/humans/bodies/<body_id>/ergo_advice` (`jntlb_fwk_msgs/ErgoAdvice`). It picks the RULA partial scores that push the score up (e.g. trunk 4/6) and asks a local LLM served by [Ollama](https://ollama.com) to phrase them — nothing leaves the machine.
+
+The LLM never computes or changes the scores: RULA/REBA stay deterministic. If the model is not running, times out or returns an unusable answer, the node publishes a template text instead (`generated_by_llm: false`), so the topic keeps working without the LLM.
+
+```bash
+# On the host: start the optional ollama service and pull a model once
+docker compose --profile llm up -d
+docker exec ollama ollama pull qwen2.5:7b-instruct
+
+# Inside the container
+ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_llm:=true
+ros2 topic echo /humans/bodies/default/ergo_advice
+```
+
+Node parameters: `llm_url` (default `http://127.0.0.1:11434`), `model` (`qwen2.5:7b-instruct`), `timeout_s` (`20.0`), `language` (`en` or `it`). A 7B model runs on CPU with a few seconds of latency per alert; uncomment the `deploy` block of the `ollama` service in `docker-compose.yml` to use an NVIDIA GPU.
 
 ### Testing without a camera
 
@@ -132,9 +172,12 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_orion:
 
 # Watch the synthetic skeleton in RViz2
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_rviz:=true
+
+# Three simulated people, each one posture ahead of the previous
+ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py "body_ids:=['a', 'b', 'c']"
 ```
 
-The fixture broadcasts the 15 `*_default` tf frames the calculator looks up, cycling through six postures (6s each, `posture_duration` parameter) chosen to cross the alert thresholds. The joint angles it produces are exact by construction, which makes it usable as a regression check:
+The fixture publishes the body ids on `/humans/bodies/tracked` and, for each body, the 15 `<link>_<body_id>` tf frames the calculator looks up, cycling through six postures (6s each, `posture_duration` parameter) chosen to cross the alert thresholds. The joint angles it produces are exact by construction, which makes it usable as a regression check:
 
 | Posture | `trunk_angle` | `left_arm_angle` | `left_elbow_angle` | `speed` | RULA | REBA |
 |---|---|---|---|---|---|---|
@@ -217,7 +260,9 @@ Every panel reads the `etergodata` table from [section 6](#6-verify-data-in-crat
 
 > **Note**: pressing **Save & test** on the CrateDB data source reports an error — CrateDB's SQL parser rejects the probe statement Grafana sends. It is cosmetic: the panel queries themselves work (verified through Grafana's query API against a live `etergodata` table).
 
-> **Not in CrateDB yet**: `orion_bridge` forwards only the `/ergo_data` fields, so the RULA/REBA scores and the ergonomic alerts stay inside ROS2 and cannot be charted here. To chart them, the bridge would have to publish `/rula_score`, `/reba_score` and `/ergo_alert` to Orion-LD as well.
+> **One entity per body**: each tracked body is a separate NGSI-LD entity (`urn:ngsi-ld:ErgoData:<body_id>`), i.e. a separate `entity_id` in `etergodata`. Pick it with the **Body** selector at the top of the dashboard; every panel is filtered on it.
+
+> **Not in CrateDB yet**: `orion_bridge` forwards only the `ergo_data` fields, so the RULA/REBA scores and the ergonomic alerts stay inside ROS2 and cannot be charted here. To chart them, the bridge would have to publish `rula_score`, `reba_score` and `ergo_alert` to Orion-LD as well.
 
 ---
 
@@ -231,19 +276,22 @@ realsense2_camera (ROS2)
       │
       ▼
 hri_body_detect  ──►  RViz2 (visualization)
-      │  tf: *_default frames rel. to body_default
+      │  /humans/bodies/tracked + tf: <link>_<id> frames rel. to body_<id>
       ▼
-ergodata_calculator
-      │  /ergo_data
+ergodata_calculator          (all topics below are per body:
+      │  ergo_data            /humans/bodies/<id>/...)
       ├──────────────┬──────────────┐
       ▼              ▼              ▼
 rula_calculator  reba_calculator  orion_bridge
-      │  /rula_score   │  /reba_score  │
+      │  rula_score    │  reba_score   │
       ▼                               ▼
  ergo_alert                    Orion-LD (FIWARE)
-      │  /ergo_alert                  │  NGSI-LD Subscription
+      │  ergo_alert                   │  NGSI-LD Subscription
       ▼                               ▼
- (ROS2 consumers)          QuantumLeap ──► CrateDB ──► Grafana
+ ergo_advisor ◄── Ollama   QuantumLeap ──► CrateDB ──► Grafana
+      │  ergo_advice  (optional, use_llm:=true)
+      ▼
+ (ROS2 consumers)
 ```
 
 ---

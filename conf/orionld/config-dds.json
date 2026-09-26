@@ -34,9 +34,9 @@
       },
       "ngsild": {
         "topics": {
-          "rt/ergo_data": {
+          "rt/humans/bodies/default/ergo_data": {
             "entityType": "ErgoData",
-            "entityId": "urn:ngsi-ld:ErgoData:001",
+            "entityId": "urn:ngsi-ld:ErgoData:default",
             "attribute": "ergoData"
           }
         }

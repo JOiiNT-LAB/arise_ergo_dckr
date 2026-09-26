@@ -59,6 +59,27 @@ services:
       - ./conf/grafana/alerting:/etc/grafana/provisioning/alerting
       - ./conf/grafana/dashboards:/var/lib/grafana/dashboards
 
+  # ── LOCAL LLM (optional) ───────────────────────────
+  # Only started with `docker compose --profile llm up -d`; used by the
+  # ergo_advisor node (launch argument use_llm:=true). Pull a model once with
+  # `docker exec ollama ollama pull qwen2.5:7b-instruct`.
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    network_mode: host
+    profiles: ["llm"]
+    volumes:
+      - ollama:/root/.ollama
+    # NVIDIA GPU (requires nvidia-container-toolkit on the host):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
   # ── ARISE ERGONOMICS ───────────────────────────────
 
   arise_ergo_dckr:
@@ -100,3 +121,4 @@ services:
 
 volumes:
   mongodb: ~
+  ollama: ~

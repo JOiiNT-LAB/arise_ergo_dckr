@@ -2,12 +2,18 @@
 """Publish a synthetic ROS4HRI body skeleton, so the ergonomic pipeline can run
 without a RealSense camera and without hri_body_detect.
 
-It broadcasts the same 15 tf frames `ergodata_calculator` looks up, all relative
-to `body_default`, cycling through a fixed sequence of postures. Only the
-translations matter: the calculator ignores the rotations.
+Like hri_body_detect, it follows the ROS4HRI conventions: the ids of the bodies
+are published on /humans/bodies/tracked, and each body gets the 15 tf frames
+`ergodata_calculator` looks up (<link>_<body_id>, relative to body_<body_id>),
+cycling through a fixed sequence of postures. Only the translations matter: the
+calculator ignores the rotations.
+
+The `body_ids` parameter (default ["default"], the id hri_body_detect uses)
+simulates several people; each one starts its posture cycle one posture later
+than the previous, so their scores differ at any given time.
 
 Frame convention (matching what the calculator assumes): X forward, Y left,
-Z up, with `body_default` on the floor under the subject. The head offset is
+Z up, with body_<body_id> on the floor under the subject. The head offset is
 1/3 of its vertical offset, which is exactly the `atan(1/3) = 18.4349` degrees
 the calculator subtracts from `neck_angle` — so the neutral posture yields a
 neck angle of ~0 instead of an arbitrary constant.
@@ -18,6 +24,7 @@ import math
 import numpy as np
 import rclpy
 from geometry_msgs.msg import TransformStamped
+from hri_msgs.msg import IdsList
 from rclpy.node import Node
 from tf2_ros import TransformBroadcaster
 
@@ -66,7 +73,7 @@ def rot_z(deg):
 def build_skeleton(trunk_flex, trunk_twist, arm_flex, elbow_flex, sway):
     """Forward-kinematics the 15 joint positions for one posture.
 
-    Returns a dict of frame name -> position in the `body_default` frame.
+    Returns a dict of link name -> position in the body root frame.
     """
     trunk = rot_y(trunk_flex)
     twist = rot_z(trunk_twist)
@@ -77,16 +84,16 @@ def build_skeleton(trunk_flex, trunk_twist, arm_flex, elbow_flex, sway):
     head = torso + trunk @ np.array([HEAD_FWD, 0.0, HEAD_UP])
 
     joints = {
-        "waist_default": waist,
-        "torso_default": torso,
-        "head_default": head,
+        "waist": waist,
+        "torso": torso,
+        "head": head,
     }
 
     # Shoulder line follows both the trunk flexion and the twist.
     for side, sign in (("l", 1.0), ("r", -1.0)):
-        joints[f"{side}_shoulder_default"] = (
+        joints[f"{side}_shoulder"] = (
             shoulder_c + trunk @ twist @ np.array([0.0, sign * SHOULDER_HALF_WIDTH, 0.0]))
-        joints[f"{side}_hip_default"] = (
+        joints[f"{side}_hip"] = (
             waist + np.array([0.0, sign * HIP_HALF_WIDTH, -0.05]))
 
     # Arms: hanging straight down is (0, 0, -1); a positive arm_flexion swings
@@ -94,17 +101,17 @@ def build_skeleton(trunk_flex, trunk_twist, arm_flex, elbow_flex, sway):
     upper_dir = trunk @ rot_y(-arm_flex) @ np.array([0.0, 0.0, -1.0])
     fore_dir = trunk @ rot_y(-(arm_flex + elbow_flex)) @ np.array([0.0, 0.0, -1.0])
     for side in ("l", "r"):
-        shoulder = joints[f"{side}_shoulder_default"]
+        shoulder = joints[f"{side}_shoulder"]
         elbow = shoulder + upper_dir * UPPER_ARM_LEN
-        joints[f"{side}_elbow_default"] = elbow
-        joints[f"{side}_wrist_default"] = elbow + fore_dir * FOREARM_LEN
+        joints[f"{side}_elbow"] = elbow
+        joints[f"{side}_wrist"] = elbow + fore_dir * FOREARM_LEN
 
     # Legs stay straight: the RULA leg score is not the point of this fixture.
     for side, sign in (("l", 1.0), ("r", -1.0)):
-        hip = joints[f"{side}_hip_default"]
+        hip = joints[f"{side}_hip"]
         knee = hip + np.array([0.0, 0.0, -THIGH_LEN])
-        joints[f"{side}_knee_default"] = knee
-        joints[f"{side}_ankle_default"] = knee + np.array([0.0, 0.0, -SHIN_LEN])
+        joints[f"{side}_knee"] = knee
+        joints[f"{side}_ankle"] = knee + np.array([0.0, 0.0, -SHIN_LEN])
 
     return joints
 
@@ -117,44 +124,55 @@ class FakeBodyPublisher(Node):
         self.declare_parameter('rate', 30.0)
         self.declare_parameter('posture_duration', 6.0)
         self.declare_parameter('sway_period', 2.0)
+        self.declare_parameter('body_ids', ['default'])
 
         self.rate = self.get_parameter('rate').value
         self.posture_duration = self.get_parameter('posture_duration').value
         self.sway_period = self.get_parameter('sway_period').value
+        self.body_ids = list(self.get_parameter('body_ids').value)
 
         self.broadcaster = TransformBroadcaster(self)
+        self.tracked_pub = self.create_publisher(IdsList, '/humans/bodies/tracked', 1)
         self.start = self.get_clock().now()
-        self.current_posture = None
+        self.current_posture = {}
 
         self.timer = self.create_timer(1.0 / self.rate, self.publish_skeleton)
         self.get_logger().info(
             f"Publishing a synthetic body skeleton at {self.rate:.0f} Hz — "
-            f"{len(POSTURES)} postures, {self.posture_duration:.0f}s each")
+            f"{len(POSTURES)} postures, {self.posture_duration:.0f}s each, "
+            f"bodies {self.body_ids}")
 
     def publish_skeleton(self):
         elapsed = (self.get_clock().now() - self.start).nanoseconds / 1e9
-        index = int(elapsed / self.posture_duration) % len(POSTURES)
-        name, trunk_flex, trunk_twist, arm_flex, elbow_flex, sway_amp = POSTURES[index]
-
-        if name != self.current_posture:
-            self.current_posture = name
-            self.get_logger().info(f"Posture -> {name}")
-
-        # A moving waist is what makes the calculator's `speed` field non-zero.
-        sway = sway_amp * math.sin(2.0 * math.pi * elapsed / self.sway_period)
-        joints = build_skeleton(trunk_flex, trunk_twist, arm_flex, elbow_flex, sway)
-
         stamp = self.get_clock().now().to_msg()
-        for frame, position in joints.items():
-            tf = TransformStamped()
-            tf.header.stamp = stamp
-            tf.header.frame_id = 'body_default'
-            tf.child_frame_id = frame
-            tf.transform.translation.x = float(position[0])
-            tf.transform.translation.y = float(position[1])
-            tf.transform.translation.z = float(position[2])
-            tf.transform.rotation.w = 1.0
-            self.broadcaster.sendTransform(tf)
+
+        tracked = IdsList()
+        tracked.header.stamp = stamp
+        tracked.ids = self.body_ids
+        self.tracked_pub.publish(tracked)
+
+        for offset, body_id in enumerate(self.body_ids):
+            index = (int(elapsed / self.posture_duration) + offset) % len(POSTURES)
+            name, trunk_flex, trunk_twist, arm_flex, elbow_flex, sway_amp = POSTURES[index]
+
+            if name != self.current_posture.get(body_id):
+                self.current_posture[body_id] = name
+                self.get_logger().info(f"Posture [{body_id}] -> {name}")
+
+            # A moving waist is what makes the calculator's `speed` field non-zero.
+            sway = sway_amp * math.sin(2.0 * math.pi * elapsed / self.sway_period)
+            joints = build_skeleton(trunk_flex, trunk_twist, arm_flex, elbow_flex, sway)
+
+            for link, position in joints.items():
+                tf = TransformStamped()
+                tf.header.stamp = stamp
+                tf.header.frame_id = f'body_{body_id}'
+                tf.child_frame_id = f'{link}_{body_id}'
+                tf.transform.translation.x = float(position[0])
+                tf.transform.translation.y = float(position[1])
+                tf.transform.translation.z = float(position[2])
+                tf.transform.rotation.w = 1.0
+                self.broadcaster.sendTransform(tf)
 
 
 def main(args=None):

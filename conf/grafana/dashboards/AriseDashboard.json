@@ -40,7 +40,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Neck\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Neck\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -102,7 +102,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", trunk_angle AS \"Trunk\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", trunk_angle AS \"Trunk\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -164,7 +164,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", left_arm_angle AS \"Left arm\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", left_arm_angle AS \"Left arm\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -226,7 +226,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", right_arm_angle AS \"Right arm\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", right_arm_angle AS \"Right arm\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -288,7 +288,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Flexion\", neck_frontal_angle AS \"Frontal\", neck_bending_angle AS \"Bending\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Flexion\", neck_frontal_angle AS \"Frontal\", neck_bending_angle AS \"Bending\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -396,7 +396,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", trunk_angle AS \"Flexion\", trunk_bending_angle AS \"Bending\", trunk_twisting_angle AS \"Twisting\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", trunk_angle AS \"Flexion\", trunk_bending_angle AS \"Bending\", trunk_twisting_angle AS \"Twisting\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -504,7 +504,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", left_arm_angle AS \"Left\", right_arm_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", left_arm_angle AS \"Left\", right_arm_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -597,7 +597,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", left_elbow_angle AS \"Left\", right_elbow_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", left_elbow_angle AS \"Left\", right_elbow_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -690,7 +690,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", left_wrist_angle AS \"Left\", right_wrist_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", left_wrist_angle AS \"Left\", right_wrist_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -783,7 +783,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", left_shoulder_angle AS \"Left\", right_shoulder_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", left_shoulder_angle AS \"Left\", right_shoulder_angle AS \"Right\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -876,7 +876,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", speed AS \"Speed\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", speed AS \"Speed\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -954,7 +954,7 @@
           },
           "format": "time_series",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", external_load AS \"Load\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index",
+          "rawSql": "SELECT time_index AS \"time\", external_load AS \"Load\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
           "editorMode": "code"
         }
       ],
@@ -1032,7 +1032,7 @@
           },
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Neck\", trunk_angle AS \"Trunk\", left_arm_angle AS \"L arm\", right_arm_angle AS \"R arm\", left_elbow_angle AS \"L elbow\", right_elbow_angle AS \"R elbow\", speed AS \"Speed\"\nFROM etergodata\nWHERE $__timeFilter(time_index)\nORDER BY time_index DESC\nLIMIT 100",
+          "rawSql": "SELECT time_index AS \"time\", neck_angle AS \"Neck\", trunk_angle AS \"Trunk\", left_arm_angle AS \"L arm\", right_arm_angle AS \"R arm\", left_elbow_angle AS \"L elbow\", right_elbow_angle AS \"R elbow\", speed AS \"Speed\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index DESC\nLIMIT 100",
           "editorMode": "code"
         }
       ],
@@ -1054,7 +1054,27 @@
     }
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "body",
+        "label": "Body",
+        "description": "ROS4HRI body, one NGSI-LD entity per tracked body (urn:ngsi-ld:ErgoData:<body_id>)",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "cratedb"
+        },
+        "definition": "SELECT DISTINCT entity_id FROM etergodata ORDER BY entity_id",
+        "query": "SELECT DISTINCT entity_id FROM etergodata ORDER BY entity_id",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 1,
+        "hide": 0,
+        "current": {},
+        "options": []
+      }
+    ]
   },
   "annotations": {
     "list": []
