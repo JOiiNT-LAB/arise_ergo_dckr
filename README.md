@@ -137,6 +137,8 @@ The pipeline follows [ROS4HRI (REP-155)](https://www.ros.org/reps/rep-0155.html)
 | `/humans/bodies/<body_id>/ergo_alert` | `jntlb_fwk_msgs/ErgoAlert` | `ergo_alert` (on level change) |
 | `/humans/bodies/<body_id>/ergo_advice` | `jntlb_fwk_msgs/ErgoAdvice` | `ergo_advisor` (optional) |
 
+Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Header`: `frame_id` is the body root frame (`body_<body_id>`) and `stamp` is the time of the skeleton sample it was computed from — `ergodata_calculator` sets it from tf and every downstream node copies it, so a score or alert can be matched to the exact posture that produced it.
+
 Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. Note that `hri_body_detect` currently forces every track to the id `default`, so with the real camera only one person is tracked; the test fixture can simulate several (`body_ids` below).
 
 Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
