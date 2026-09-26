@@ -139,6 +139,8 @@ The pipeline follows [ROS4HRI (REP-155)](https://www.ros.org/reps/rep-0155.html)
 
 Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Header`: `frame_id` is the body root frame (`body_<body_id>`) and `stamp` is the time of the skeleton sample it was computed from — `ergodata_calculator` sets it from tf and every downstream node copies it, so a score or alert can be matched to the exact posture that produced it.
 
+`speed` is how far `body_<body_id>` moved in the horizontal plane of a fixed frame since the previous cycle (mm per 0.1 s cycle). The body frame follows the person, so the fixed frame is a parameter of `ergodata_calculator`, `reference_frame` (default `camera_link`, which `hri_body_detect`'s camera frame hangs from); if that frame is not available, `speed` is 0 and the rest of the sample is still published.
+
 Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. Note that `hri_body_detect` currently forces every track to the id `default`, so with the real camera only one person is tracked; the test fixture can simulate several (`body_ids` below).
 
 Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
@@ -179,18 +181,20 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_rviz:=
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py "body_ids:=['a', 'b', 'c']"
 ```
 
-The fixture publishes the body ids on `/humans/bodies/tracked` and, for each body, the 15 `<link>_<body_id>` tf frames the calculator looks up, cycling through six postures (6s each, `posture_duration` parameter) chosen to cross the alert thresholds. The joint angles it produces are exact by construction, which makes it usable as a regression check:
+The fixture publishes the body ids on `/humans/bodies/tracked` and, for each body, the 15 `<link>_<body_id>` tf frames the calculator looks up, cycling through six postures (6s each, `posture_duration` parameter) chosen to cross the alert thresholds. As in REP-155, each `body_<body_id>` frame has its origin between the hips and is parented to the camera frame (`camera_link`), 2.5 m in front of it; walking in place moves the body frame itself, like a real tracker. The joint angles it produces are exact by construction, and every angle is kept a few degrees away from the RULA/REBA band limits, so the scores below are a reliable regression check:
 
-| Posture | `trunk_angle` | `left_arm_angle` | `left_elbow_angle` | `speed` | RULA | REBA |
-|---|---|---|---|---|---|---|
-| neutral standing | 0 | 180 | 5 | 0 | 2 | 1 |
-| arms forward 60° | 0 | 120 | 30 | 0 | 3 | 2 |
-| arms overhead | 0 | 20 | 20 | 0 | 3 | 3 |
-| trunk bent 45° | 45 | 140 | 60 | 0 | **6** | 4 |
-| trunk twisted | 20 | 130 | 45 | 0 | 4 | 3 |
-| walking in place | 5 | 160 | 25 | 7–18 | 2 | 1 |
+| Posture | `trunk_angle` | `left_arm_angle` | `left_elbow_angle` | `neck_angle` | `speed` | RULA | REBA |
+|---|---|---|---|---|---|---|---|
+| neutral standing | 0 | 180 | 5 | 5 | 0 | 2 | 1 |
+| arms forward 60° | 0 | 120 | 30 | 5 | 0 | 3 | 2 |
+| arms overhead | 0 | 20 | 20 | 5 | 0 | 3 | 3 |
+| bent 70° reaching | 70 | 70 | 50 | 5 | 0 | **5** | 5 |
+| trunk twisted | 25 | 130 | 45 | 5 | 0 | 4 | 4 |
+| walking in place | 10 | 170 | 25 | 5 | up to ~19 | 2 | 2 |
 
-Note the pipeline's convention: `left_arm_angle` is the angle between the upper arm and the spine, so **180° means the arm hangs at rest** and small values mean it is raised overhead. `trunk bent 45°` is the posture that pushes RULA to 6 and makes `ergo_alert` publish its `warning` level, so it is the one to watch when checking that the alert path works.
+Note the pipeline's convention: `left_arm_angle` is the angle between the upper arm and the spine, so **180° means the arm hangs at rest** and small values mean it is raised overhead. `bent 70° reaching` (trunk flexed 70°, arm reaching forward) is the posture that pushes RULA to 5 and makes `ergo_alert` publish its `warning` level, so it is the one to watch when checking that the alert path works.
+
+> An earlier version of this fixture had a neck angle of exactly 0° and several angles exactly on band limits (trunk 20°, elbow 60°…). RULA/REBA read a negative neck angle as extension, so floating-point noise decided the scores — the "RULA 6" once documented for a 45° trunk bend came from that noise, not from the posture.
 
 Because the fixture needs neither the camera nor RViz2, only two workspace packages have to be built for it:
 
