@@ -1,6 +1,6 @@
 [submodule "components/hri_body_detect"]
 	path = components/hri_body_detect
-	url = https://github.com/JOiiNT-LAB/hri_body_detect.git
+	url = https://github.com/ros4hri/hri_body_detect.git
 	branch = humble-devel
 [submodule "components/hri_face_detect"]
 	path = components/hri_face_detect
@@ -18,3 +18,7 @@
 	path = components/ergo_pkg_py
 	url = https://github.com/JOiiNT-LAB/ergo_pkg_py.git
 	branch = main
+[submodule "components/hri_msgs"]
+	path = components/hri_msgs
+	url = https://github.com/ros4hri/hri_msgs.git
+	branch = humble-devel

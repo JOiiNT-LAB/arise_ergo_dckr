@@ -98,8 +98,8 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py
 This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in order:
 
 1. **RealSense camera** (`realsense2_camera`'s `rs_launch.py`) — publishes RGB/depth/pointcloud topics.
-2. **Body tracking** (`hri_body_detect`'s `hri_body_detect_with_args.launch.py`) — detects skeleton keypoints from the camera stream.
-3. **RViz2**, pre-loaded with [components/human_description/config/human.rviz](components/human_description/config/human.rviz) — no manual panel setup needed. Note the Fixed Frame is `body_default` (the actual published frame name; the pipeline just calls it "body" informally).
+2. **Body tracking** (`hri_body_detect`, upstream [ros4hri/hri_body_detect](https://github.com/ros4hri/hri_body_detect) 3.4.1, started as a lifecycle node by this launch file with `use_depth: true` and the RealSense topics) — detects up to five people with MediaPipe and a tracker, and publishes each one under a random body id, `/humans/bodies/<id>/`. It needs `hri_msgs` ≥ 2.3, which the image does not ship: it is the `components/hri_msgs` submodule, built from source in the workspace.
+3. **RViz2**, pre-loaded with [launch/human_ros4hri.rviz](launch/human_ros4hri.rviz) — Fixed Frame `camera_link`, the `hri_rviz` `Humans` (2D overlay on the camera image), `Skeletons3D` and `TF_HRI` displays, which follow whatever bodies are tracked. The `human.rviz` of `human_description` is written for the single id `default` (frames `*_default`, Fixed Frame `body_default`) and shows nothing with real ids.
 4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `ergo_data`.
 5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `ergo_data`, publishing `rula_score`.
 6. **`reba_calculator`** — runs the REBA (Rapid Entire Body Assessment) scoring algorithm on `ergo_data`, publishing `reba_score`.
@@ -113,6 +113,8 @@ Launch arguments:
 | Argument | Default | Effect |
 |---|---|---|
 | `use_rviz` | `true` | Set to `false` to skip RViz2 — required on headless hosts with no X11 session. |
+| `use_camera` | `true` | Set to `false` to skip the RealSense driver and feed the detector from something else (a rosbag, or a video republished on `/camera/camera/color/image_raw`, `.../color/camera_info`, `.../depth/image_rect_raw` and `.../depth/camera_info`). |
+| `use_orion` | `true` | Set to `false` to skip `orion_bridge`, so a test does not write to Orion-LD. |
 | `use_llm` | `false` | Set to `true` to start `ergo_advisor` (see [Local LLM advisor](#local-llm-advisor-optional)). |
 
 ```bash
@@ -120,7 +122,7 @@ Launch arguments:
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_rviz:=false
 ```
 
-> **Optional debug check**: `ros2 topic echo /humans/bodies/default/ergo_data` (or `rula_score`, `reba_score`, `ergo_alert`) in a separate terminal to inspect the live data without affecting the running pipeline. `ros2 topic echo /humans/bodies/tracked` lists the body ids currently tracked.
+> **Optional debug check**: `ros2 topic echo /humans/bodies/tracked` lists the body ids currently tracked; then `ros2 topic echo /humans/bodies/<id>/ergo_data` (or `rula_score`, `reba_score`, `ergo_alert`) in a separate terminal inspects the live data of one person without affecting the running pipeline. Ids are random and change when the tracker loses someone and finds them again.
 
 ### ROS4HRI conventions
 
@@ -141,7 +143,7 @@ Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Heade
 
 `speed` is how far `body_<body_id>` moved in the horizontal plane of a fixed frame since the previous cycle (mm per 0.1 s cycle). The body frame follows the person, so the fixed frame is a parameter of `ergodata_calculator`, `reference_frame` (default `camera_link`, which `hri_body_detect`'s camera frame hangs from); if that frame is not available, `speed` is 0 and the rest of the sample is still published.
 
-Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. A new id is acted upon only after it has been tracked for `body_min_age` seconds (parameter of every ergonomic node, default `1.0`; `0` reacts at first sight): a tracker can emit ids that live for a fraction of a second, and without the filter each one would create topics and an Orion entity for a person that was never there. On a test clip with two people walking, it cut the bodies created in 40 s from 21 to 10. The fixture's bodies therefore appear one second after launch. Note that `hri_body_detect` currently forces every track to the id `default`, so with the real camera only one person is tracked; the test fixture can simulate several (`body_ids` below).
+Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. A new id is acted upon only after it has been tracked for `body_min_age` seconds (parameter of every ergonomic node, default `1.0`; `0` reacts at first sight): a tracker can emit ids that live for a fraction of a second, and without the filter each one would create topics and an Orion entity for a person that was never there. On a test clip with two people walking, it cut the bodies created in 40 s from 21 to 10. The fixture's bodies therefore appear one second after launch. Upstream `hri_body_detect` follows several people at once, each under its own random id (the JOiiNT fork this project used before forced every track to `default`, so only one person could be followed). Its ids are not stable: on short test clips the tracker lost and re-created a person every few seconds, so in a real shift expect a new entity whenever someone leaves the view and returns. The test fixture can simulate several people (`body_ids` below).
 
 Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
 
@@ -158,7 +160,7 @@ docker exec ollama ollama pull qwen2.5:7b-instruct
 
 # Inside the container
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_llm:=true
-ros2 topic echo /humans/bodies/default/ergo_advice
+ros2 topic echo /humans/bodies/<id>/ergo_advice   # <id> from /humans/bodies/tracked
 ```
 
 Node parameters: `llm_url` (default `http://127.0.0.1:11434`), `model` (`qwen2.5:7b-instruct`), `timeout_s` (`20.0`), `language` (`en` or `it`). A 7B model runs on CPU with a few seconds of latency per alert; uncomment the `deploy` block of the `ollama` service in `docker-compose.yml` to use an NVIDIA GPU.
