@@ -45,6 +45,9 @@ def generate_launch_description():
             os.path.join(
                 get_package_share_directory('realsense2_camera'),
                 'launch', 'rs_launch.py')),
+        # The detector reads the depth at a colour-image pixel (the hips), so the depth
+        # has to be registered on the colour image: the driver's align_depth filter.
+        launch_arguments={'align_depth.enable': 'true'}.items(),
         condition=IfCondition(LaunchConfiguration('use_camera')))
 
     # Upstream hri_body_detect (ros4hri, 3.4.x) as a lifecycle node. Its own launch file
@@ -64,8 +67,8 @@ def generate_launch_description():
         remappings=[
             ('image', '/camera/camera/color/image_raw'),
             ('camera_info', '/camera/camera/color/camera_info'),
-            ('depth_image', '/camera/camera/depth/image_rect_raw'),
-            ('depth_info', '/camera/camera/depth/camera_info')])
+            ('depth_image', '/camera/camera/aligned_depth_to_color/image_raw'),
+            ('depth_info', '/camera/camera/aligned_depth_to_color/camera_info')])
 
     configure_body_detect = EmitEvent(event=ChangeState(
         lifecycle_node_matcher=matches_action(body_detect),

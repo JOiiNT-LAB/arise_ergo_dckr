@@ -98,7 +98,7 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py
 This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in order:
 
 1. **RealSense camera** (`realsense2_camera`'s `rs_launch.py`) — publishes RGB/depth/pointcloud topics.
-2. **Body tracking** (`hri_body_detect`, upstream [ros4hri/hri_body_detect](https://github.com/ros4hri/hri_body_detect) 3.4.1, started as a lifecycle node by this launch file with `use_depth: true` and the RealSense topics) — detects up to five people with MediaPipe and a tracker, and publishes each one under a random body id, `/humans/bodies/<id>/`. It needs `hri_msgs` ≥ 2.3, which the image does not ship: it is the `components/hri_msgs` submodule, built from source in the workspace.
+2. **Body tracking** (`hri_body_detect`, upstream [ros4hri/hri_body_detect](https://github.com/ros4hri/hri_body_detect) 3.4.1, started as a lifecycle node by this launch file with `use_depth: true`; the RealSense driver runs with `align_depth.enable` so the depth is registered on the colour image) — detects up to five people with MediaPipe and a tracker, and publishes each one under a random body id, `/humans/bodies/<id>/`. It needs `hri_msgs` ≥ 2.3, which the image does not ship: it is the `components/hri_msgs` submodule, built from source in the workspace.
 3. **RViz2**, pre-loaded with [launch/human_ros4hri.rviz](launch/human_ros4hri.rviz) — Fixed Frame `camera_link`, the `hri_rviz` `Humans` (2D overlay on the camera image), `Skeletons3D` and `TF_HRI` displays, which follow whatever bodies are tracked. The `human.rviz` of `human_description` is written for the single id `default` (frames `*_default`, Fixed Frame `body_default`) and shows nothing with real ids.
 4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `ergo_data`.
 5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `ergo_data`, publishing `rula_score`.
@@ -113,7 +113,7 @@ Launch arguments:
 | Argument | Default | Effect |
 |---|---|---|
 | `use_rviz` | `true` | Set to `false` to skip RViz2 — required on headless hosts with no X11 session. |
-| `use_camera` | `true` | Set to `false` to skip the RealSense driver and feed the detector from something else (a rosbag, or a video republished on `/camera/camera/color/image_raw`, `.../color/camera_info`, `.../depth/image_rect_raw` and `.../depth/camera_info`). |
+| `use_camera` | `true` | Set to `false` to skip the RealSense driver and feed the detector from something else (a rosbag, or a video republished on `/camera/camera/color/image_raw`, `.../color/camera_info`, `/camera/camera/aligned_depth_to_color/image_raw` and `.../aligned_depth_to_color/camera_info`). |
 | `use_orion` | `true` | Set to `false` to skip `orion_bridge`, so a test does not write to Orion-LD. |
 | `use_llm` | `false` | Set to `true` to start `ergo_advisor` (see [Local LLM advisor](#local-llm-advisor-optional)). |
 
