@@ -212,32 +212,25 @@ Nothing to do here — the FIWARE stack (Orion-LD, CrateDB, QuantumLeap, Grafana
 
 ## 5. NGSI-LD Subscription
 
-Create a subscription so Orion-LD notifies the QuantumLeap/CrateDB sink whenever `ErgoData` entities are updated:
+The subscription that makes Orion-LD notify the QuantumLeap/CrateDB sink whenever an `ErgoData` entity is updated is created **automatically** when QuantumLeap starts: [build/quantumleap/inject.sh](build/quantumleap/inject.sh) waits for CrateDB and Orion-LD and then posts every `.json` file found in [conf/quantumleap/subscriptions/](conf/quantumleap/subscriptions/) (mounted into the container; the current one is [ergodata.json](conf/quantumleap/subscriptions/ergodata.json)). It is safe to restart: the subscription is stored in MongoDB, so on later starts Orion answers `409 Conflict` and the script reports "already exists".
+
+To forward another entity type to CrateDB, drop one more `.json` file in that folder (add `receiverInfo` with a `fiware-service` key if the entity lives in a tenant). Because `inject.sh` is copied into the image, rebuild after editing it:
 
 ```bash
-curl -X POST http://localhost:1026/ngsi-ld/v1/subscriptions \
-  -H "Content-Type: application/ld+json" \
-  -d '{
-    "id": "urn:ngsi-ld:Subscription:ErgoData",
-    "type": "Subscription",
-    "entities": [{"type": "ErgoData"}],
-    "notification": {
-      "endpoint": {
-        "uri": "http://127.0.0.1:8668/v2/notify",
-        "accept": "application/json"
-      }
-    },
-    "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"]
-  }'
+docker compose build quantumleap && docker compose up -d quantumleap
+```
+
+Check that it was created:
+
+```bash
+curl -s http://localhost:1026/ngsi-ld/v1/subscriptions | python3 -m json.tool
 ```
 
 ---
 
 ## 6. Verify Data in CrateDB
 
-> **Note:** The table is named `etergodata` (not `mtergodata`).
-
-Query the most recent 3 records to confirm data is flowing:
+Query the most recent 3 records to confirm data is flowing (the table is named `etergodata`):
 
 ```bash
 curl -s "http://localhost:4200/_sql" \

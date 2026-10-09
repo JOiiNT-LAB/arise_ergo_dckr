@@ -41,6 +41,7 @@ services:
       - crate-db
     environment:
       - CRATE_HOST=127.0.0.1
+      - ORION_HOST=127.0.0.1
       - AUTOMATIC_SUBSCRIPTION=true
     volumes:
       - ./conf/quantumleap/subscriptions:/src/ngsi-timeseries-api/src/subscriptions
