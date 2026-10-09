@@ -10,9 +10,8 @@ import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.substitutions import FindPackageShare
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -47,15 +46,14 @@ def generate_launch_description():
         name='fake_body_publisher',
         output='screen')
 
-    # FindPackageShare is a substitution, so the path is resolved only if the
-    # condition holds — with use_rviz:=false this launch file works in a
-    # workspace where human_description was never built.
+    # The fixture publishes the ids and the tf frames of each body, not their URDF, so
+    # of the displays in human_ros4hri.rviz only TF_HRI shows something (the frames of
+    # the synthetic skeletons); Skeletons3D needs the URDF the real detector publishes.
     rviz = Node(
         package='rviz2',
         executable='rviz2',
         name='rviz2',
-        arguments=['-d', PathJoinSubstitution(
-            [FindPackageShare('human_description'), 'config', 'human.rviz'])],
+        arguments=['-d', os.path.join(THIS_DIR, 'human_ros4hri.rviz')],
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_rviz')))
 

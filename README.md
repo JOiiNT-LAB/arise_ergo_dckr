@@ -145,7 +145,7 @@ Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Heade
 
 Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. A new id is acted upon only after it has been tracked for `body_min_age` seconds (parameter of every ergonomic node, default `1.0`; `0` reacts at first sight): a tracker can emit ids that live for a fraction of a second, and without the filter each one would create topics and an Orion entity for a person that was never there. On a test clip with two people walking, it cut the bodies created in 40 s from 21 to 10. The fixture's bodies therefore appear one second after launch. Upstream `hri_body_detect` follows several people at once, each under its own random id (the JOiiNT fork this project used before forced every track to `default`, so only one person could be followed). Its ids are not stable: on short test clips the tracker lost and re-created a person every few seconds, so in a real shift expect a new entity whenever someone leaves the view and returns. The test fixture can simulate several people (`body_ids` below).
 
-Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
+`orion_bridge` also subscribes to `rula_score`, `reba_score` and `ergo_alert` of every body, to mirror them into Orion-LD next to the angles. Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
 
 ### Local LLM advisor (optional)
 
@@ -176,7 +176,7 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py
 # ROS2 side only, no FIWARE stack needed
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_orion:=false
 
-# Watch the synthetic skeleton in RViz2
+# Watch the synthetic skeleton frames in RViz2 (TF_HRI display; Skeletons3D needs the URDF of the real detector)
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_rviz:=true
 
 # Three simulated people, each one posture ahead of the previous
