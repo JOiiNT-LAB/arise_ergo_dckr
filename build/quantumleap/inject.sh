@@ -112,6 +112,26 @@ Orion-LD Started!
 echo "
 ========================================================
 
+Waiting for QuantumLeap to accept notifications..
+
+========================================================
+"
+# inject.sh runs in the background while app.py starts. Orion-LD pauses a
+# subscription after 3 consecutive failed notifications and never resumes it, so
+# the subscription must not be created or re-activated before QuantumLeap answers.
+LOOPS=15
+until [ "$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8668/version)" = "200" ]; do
+    sleep 4
+    LOOPS=$((LOOPS - 1))
+    if [ $LOOPS -eq 0 ] ; then
+        echo 'QuantumLeap has not started :( :('
+        exit 1
+    fi
+done
+
+echo "
+========================================================
+
 Sending the subscription request..
 
 ========================================================
@@ -151,13 +171,42 @@ Subscription sent successfully!
 ========================================================
             "
         elif [ "$subscription_status" -eq 409 ] ; then
-            echo "
+            # Orion-LD sets a subscription to "paused" (isActive false) after 3 failed
+            # notifications, e.g. while QuantumLeap was down, and keeps it paused: data
+            # would silently stop reaching CrateDB. Resume it.
+            subscription_id=$(jq -r '.id' "$subscription_file")
+            if [ -n "$tenant" ]; then
+                tenant_header="NGSILD-Tenant: $tenant"
+            else
+                tenant_header="X-Unused: none"
+            fi
+            is_active=$(curl -s -H "$tenant_header" -H 'Accept: application/json' \
+                "http://$ORION_HOST:1026/ngsi-ld/v1/subscriptions/$subscription_id" | jq -r '.isActive')
+            if [ "$is_active" = "false" ] ; then
+                resume_status=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH \
+                    "http://$ORION_HOST:1026/ngsi-ld/v1/subscriptions/$subscription_id" \
+                    -H 'Content-Type: application/ld+json' -H "$tenant_header" \
+                    -d '{"isActive": true, "@context": ["https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"]}')
+                if [ "$resume_status" -ne 204 ] ; then
+                    echo "Subscription was paused and could not be resumed (HTTP $resume_status) :( :("
+                    exit 1
+                fi
+                echo "
 ========================================================
 
-Subscription already exists, nothing to do.
+Subscription was paused, resumed it.
 
 ========================================================
-            "
+                "
+            else
+                echo "
+========================================================
+
+Subscription already exists and is active, nothing to do.
+
+========================================================
+                "
+            fi
         else
             echo "Subscription could not be sent (HTTP $subscription_status) :( :("
             exit 1
