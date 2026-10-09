@@ -104,7 +104,7 @@ This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in ord
 5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `ergo_data`, publishing `rula_score`.
 6. **`reba_calculator`** — runs the REBA (Rapid Entire Body Assessment) scoring algorithm on `ergo_data`, publishing `reba_score`.
 7. **`ergo_alert`** — classifies `rula_score` into alert levels and publishes `ergo_alert` only when the level changes. Thresholds are node parameters (`warning_threshold`, default `5`; `critical_threshold`, default `7`).
-8. **`orion_bridge`** — sends the `ergo_data` fields to the FIWARE Orion-LD context broker, one NGSI-LD entity per body: `urn:ngsi-ld:ErgoData:<body_id>`.
+8. **`orion_bridge`** — sends the `ergo_data` fields, the latest RULA/REBA partial scores (`rula_*`, `reba_*`) and the alert state (`alert_level`, `alert_description`) to the FIWARE Orion-LD context broker, one NGSI-LD entity per body: `urn:ngsi-ld:ErgoData:<body_id>`. The scores are merged into each `ergo_data` sample, so a score can be at most one calculation cycle older than the angles next to it.
 
 Every ergonomic topic is per person, following the ROS4HRI conventions — see [ROS4HRI conventions](#ros4hri-conventions).
 
@@ -251,6 +251,9 @@ Every panel reads the `etergodata` table from [section 6](#6-verify-data-in-crat
 
 | Panel | Shows |
 |---|---|
+| **RULA**, **REBA**, **Alert** (latest) | latest score and alert level, coloured by action level |
+| **Time at RULA >= 5** | share of the selected time range spent at or above the `ergo_alert` warning threshold |
+| **RULA / REBA score**, **Alert level** | the two scores over time and a timeline of OK / Warning / Critical |
 | Neck / Trunk / Left arm / Right arm | latest value of each, as a headline number |
 | **Neck**, **Trunk** | flexion, frontal/bending and twisting angles over time |
 | **Upper arms**, **Elbows**, **Wrists**, **Shoulders** | left vs right over time (left is always blue, right always orange) |
@@ -261,7 +264,7 @@ Every panel reads the `etergodata` table from [section 6](#6-verify-data-in-crat
 
 > **One entity per body**: each tracked body is a separate NGSI-LD entity (`urn:ngsi-ld:ErgoData:<body_id>`), i.e. a separate `entity_id` in `etergodata`. Pick it with the **Body** selector at the top of the dashboard; every panel is filtered on it.
 
-> **Not in CrateDB yet**: `orion_bridge` forwards only the `ergo_data` fields, so the RULA/REBA scores and the ergonomic alerts stay inside ROS2 and cannot be charted here. To chart them, the bridge would have to publish `rula_score`, `reba_score` and `ergo_alert` to Orion-LD as well.
+> **Scores and alerts in CrateDB**: next to the angles, `etergodata` has one column per RULA/REBA partial score (`rula_full`, `rula_trunk`, `rula_left_upper_arm`, `reba_full`, ...) and the alert state (`alert_level`: 0 OK, 1 warning, 2 critical; `alert_description`). QuantumLeap adds the columns on its own the first time Orion sends them, so rows written before that have them empty. The advisor texts (`ergo_advice`) are still ROS2-only.
 
 ---
 

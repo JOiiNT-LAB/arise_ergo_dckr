@@ -18,6 +18,505 @@
   "version": 1,
   "panels": [
     {
+      "id": 14,
+      "type": "stat",
+      "title": "RULA (latest)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_index AS \"time\", rula_full AS \"RULA\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 3
+              },
+              {
+                "color": "orange",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 7
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Rapid Upper Limb Assessment, 1-7. Action levels: 1-2 acceptable, 3-4 investigate, 5-6 investigate soon, 7 change now."
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "REBA (latest)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_index AS \"time\", reba_full AS \"REBA\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 4
+              },
+              {
+                "color": "orange",
+                "value": 8
+              },
+              {
+                "color": "red",
+                "value": 11
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Rapid Entire Body Assessment, 1-15. Risk: 1 negligible, 2-3 low, 4-7 medium, 8-10 high, 11+ very high."
+    },
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Alert (latest)",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_index AS \"time\", alert_level AS \"Alert\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Warning",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Critical",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Level published by ergo_alert: OK, Warning (RULA >= 5), Critical (RULA >= 7). The thresholds are parameters of the ergo_alert node."
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Time at RULA >= 5",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT 100.0 * sum(CASE WHEN rula_full >= 5 THEN 1 ELSE 0 END) / NULLIF(count(rula_full), 0) AS \"Time at RULA >= 5\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body' AND rula_full IS NOT NULL",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "orange",
+                "value": 25
+              },
+              {
+                "color": "red",
+                "value": 50
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "description": "Share of the samples in the selected time range with RULA 5 or higher (the default warning threshold of ergo_alert)."
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "RULA / REBA score",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_index AS \"time\", rula_full AS \"RULA\", reba_full AS \"REBA\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "lineInterpolation": "stepAfter",
+            "fillOpacity": 0,
+            "showPoints": "never",
+            "spanNulls": true,
+            "axisBorderShow": false,
+            "axisGridShow": true,
+            "axisLabel": "",
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RULA"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#2a78d6"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "REBA"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#eb6834"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom",
+          "calcs": []
+        }
+      }
+    },
+    {
+      "id": 19,
+      "type": "state-timeline",
+      "title": "Alert level",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "cratedb"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 4,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "cratedb"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT time_index AS \"time\", alert_level AS \"Alert\"\nFROM etergodata\nWHERE $__timeFilter(time_index) AND entity_id = '$body'\nORDER BY time_index",
+          "editorMode": "code"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "OK",
+                  "color": "green",
+                  "index": 0
+                },
+                "1": {
+                  "text": "Warning",
+                  "color": "orange",
+                  "index": 1
+                },
+                "2": {
+                  "text": "Critical",
+                  "color": "red",
+                  "index": 2
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 2
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "showValue": "auto",
+        "alignValue": "left",
+        "rowHeight": 0.8,
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
       "id": 1,
       "type": "stat",
       "title": "Neck flexion (latest)",
@@ -27,7 +526,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 0,
+        "y": 12,
         "w": 6,
         "h": 4
       },
@@ -89,7 +588,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 0,
+        "y": 12,
         "w": 6,
         "h": 4
       },
@@ -151,7 +650,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 0,
+        "y": 12,
         "w": 6,
         "h": 4
       },
@@ -213,7 +712,7 @@
       },
       "gridPos": {
         "x": 18,
-        "y": 0,
+        "y": 12,
         "w": 6,
         "h": 4
       },
@@ -275,7 +774,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 4,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -383,7 +882,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 4,
+        "y": 16,
         "w": 12,
         "h": 8
       },
@@ -491,7 +990,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 12,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -584,7 +1083,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 12,
+        "y": 24,
         "w": 12,
         "h": 8
       },
@@ -677,7 +1176,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 20,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -770,7 +1269,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 20,
+        "y": 32,
         "w": 12,
         "h": 8
       },
@@ -863,7 +1362,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 28,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -941,7 +1440,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 28,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -1019,7 +1518,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 36,
+        "y": 48,
         "w": 24,
         "h": 9
       },
