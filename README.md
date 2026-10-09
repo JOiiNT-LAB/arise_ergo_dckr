@@ -29,7 +29,7 @@ ARISE aims towards making industrial HRI more accessible and cost-effective, in 
 7. [Grafana Dashboard](#7-grafana-dashboard)
 8. [Architecture Overview](#architecture-overview)
 
-What changed on the `feature/ros4hri-ergo-advisor` branch, why, how it was checked and what is still open: [docs/BRANCH_NOTES.md](docs/BRANCH_NOTES.md).
+What changed on the `feature/ros4hri-ergo-advisor` branch, why, how it was checked and the known limitations: [docs/BRANCH_NOTES.md](docs/BRANCH_NOTES.md).
 
 ---
 

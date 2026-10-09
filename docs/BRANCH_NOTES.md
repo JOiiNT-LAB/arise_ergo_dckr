@@ -1,7 +1,7 @@
 # Branch notes — `feature/ros4hri-ergo-advisor`
 
 Status: 2026-10-09. This file records what changed on this branch compared with
-`main_integration`, why, how it was checked and what is still open. The README
+`main_integration`, why, how it was checked and the known limitations. The README
 describes the pipeline as it is now; this file explains how it got there. The
 package-level notes are in
 [components/ergo_pkg_py/docs/BRANCH_NOTES.md](../components/ergo_pkg_py/docs/BRANCH_NOTES.md).
@@ -99,24 +99,20 @@ for QuantumLeap (`/version`) and, on `409`, resumes a paused subscription.
 - The clips were short, looped and filmed with a moving camera, so these numbers say
   little about a fixed station with people standing in view.
 
-## Known limitations and open items
+## Known limitations
 
-1. **Entity model (decision pending).** Orion has one entity per tracker id
-   (`urn:ngsi-ld:ErgoData:<body_id>`); ids change when the tracker loses someone, so
-   the same person becomes several entities and ended tracks stay in Orion with
-   their last values. Options discussed: (A) one entity per workstation, (B) keep
-   one entity per id and add a `station` attribute, delete the entity from Orion
-   when the id disappears, and let Grafana select by station and compare sessions,
-   (C) both. The proposal is B with anonymous sessions: it answers whether a risk
-   comes from the station (all sessions high) or from how a person works (only
-   some). A persistent identity (face recognition, badge) is deliberately out of
-   scope: it needs a data-protection and works-council decision.
-2. **Neck angle `-4e-14`.** A real tracker sample gave `neck_angle` = −4.3e-14. RULA
-   and REBA read any negative neck angle as extension, so rounding noise changes the
-   score. The fixture was fixed for this; `ergo_lib` is not yet.
-3. **Samples lost while QuantumLeap is down** are not recovered.
-4. **Slides.** `documents/` is git-ignored; the deck there still describes the old
-   structure (`jntlb_fwk_msgs`, global topics, "trunk 45° → RULA 6", id `default`).
-5. **Posture regression test.** The six-posture check of the fixture is run by hand
-   (README table), not by CI.
-6. **Test with the real camera**, with the depth aligned and a few people in view.
+- **Ids are tracker ids, not persons.** Orion has one entity per body id
+  (`urn:ngsi-ld:ErgoData:<body_id>`). The tracker creates a new id whenever it loses
+  and finds a person again, so one person can become several entities, and the
+  entity of an ended track stays in Orion with its last values.
+- **`neck_angle` can be a rounding residue** (a real tracker sample gave −4.3e-14).
+  RULA and REBA read any negative neck angle as extension, so such noise can change
+  the score. The synthetic fixture avoids it; `ergo_lib` does not round.
+- **Samples sent while QuantumLeap is down are not recovered.** The subscription is
+  resumed afterwards, nothing is replayed.
+- **`Skeletons3D` shows nothing with the synthetic fixture**, which publishes no body
+  URDF; only `TF_HRI` shows its frames.
+- **The six-posture check of the fixture is run by hand** (README table), not by CI.
+- Wrist angles are 0 (no hand keypoints); external load, muscle use, coupling and
+  activity are fixed to their neutral value; the REBA tables have not been checked by
+  an ergonomics expert.
