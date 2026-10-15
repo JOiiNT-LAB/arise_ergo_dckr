@@ -91,6 +91,17 @@ source install/setup.bash
 
 ## 3. Launching the ROS2 Pipeline
 
+**Quick start, from the host.** Once the workspace is built ([section 2](#2-ros2-workspace-setup)), two scripts do everything:
+
+```bash
+./start.sh      # docker compose up, wait for Orion-LD, open Grafana, run the pipeline in the foreground
+./stop.sh       # stop the pipeline and all the containers (volumes are kept)
+```
+
+`start.sh` passes its arguments to the launch file (e.g. `./start.sh use_rviz:=false body_min_age:=1.0`); Ctrl+C stops the pipeline and leaves the containers up; `NO_BROWSER=1` skips opening Grafana.
+
+> **Camera unplugged or reconnected while the container runs?** The container only sees the USB devices present when it started: the RealSense driver then logs `No RealSense devices were found!` in a loop. Run `./stop.sh && ./start.sh`.
+
 The whole pipeline used to require one terminal per node (camera, body detection, RViz2 with 3 manual panel setup steps, the calculator nodes and the Orion bridge). It's now a single command, run inside the container:
 
 ```bash
@@ -102,10 +113,10 @@ This ([launch/arise_ergo.launch.py](launch/arise_ergo.launch.py)) starts, in ord
 1. **RealSense camera** (`realsense2_camera`'s `rs_launch.py`) — publishes RGB/depth/pointcloud topics.
 2. **Body tracking** (`hri_body_detect`, upstream [ros4hri/hri_body_detect](https://github.com/ros4hri/hri_body_detect) 3.4.1, started as a lifecycle node by this launch file with `use_depth: true`; the RealSense driver runs with `align_depth.enable` so the depth is registered on the colour image) — detects up to five people with MediaPipe and a tracker, and publishes each one under a random body id, `/humans/bodies/<id>/`. It needs `hri_msgs` ≥ 2.3, which the image does not ship: it is the `components/hri_msgs` submodule, built from source in the workspace.
 3. **RViz2**, pre-loaded with [launch/human_ros4hri.rviz](launch/human_ros4hri.rviz) — Fixed Frame `camera_link`, the `hri_rviz` `Humans` (2D overlay on the camera image), `Skeletons3D` and `TF_HRI` displays, which follow whatever bodies are tracked. The `human.rviz` of `human_description` is written for the single id `default` (frames `*_default`, Fixed Frame `body_default`) and shows nothing with real ids.
-4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `ergo_data`.
+4. **`ergodata_calculator`** — computes joint angles (neck, trunk, arms, elbows, shoulders) and speed, publishing `ergo_data`. Trunk, neck and arms are measured from the 2D skeleton and the aligned depth, relative to a neutral posture reference — see [Posture measurement](#posture-measurement); the other angles come from the detector's body model (tf).
 5. **`rula_calculator`** — runs the RULA (Rapid Upper Limb Assessment) scoring algorithm on `ergo_data`, publishing `rula_score`.
 6. **`reba_calculator`** — runs the REBA (Rapid Entire Body Assessment) scoring algorithm on `ergo_data`, publishing `reba_score`.
-7. **`ergo_alert`** — classifies `rula_score` into alert levels and publishes `ergo_alert` only when the level changes. Thresholds are node parameters (`warning_threshold`, default `5`; `critical_threshold`, default `7`).
+7. **`ergo_alert`** — classifies `rula_score` into alert levels and publishes `ergo_alert` only when the level changes. Thresholds are node parameters (`warning_threshold`, default `5`; `critical_threshold`, default `7`). `arise_ergo.launch.py` sets `critical_threshold` to **6** for now: wrists, shoulder raise and external load are not measured, so the arm part of RULA rarely gets high enough for a 7 (see [docs/BRANCH_NOTES.md](docs/BRANCH_NOTES.md)).
 8. **`orion_bridge`** — sends the `ergo_data` fields, the latest RULA/REBA partial scores (`rula_*`, `reba_*`) and the alert state (`alert_level`, `alert_description`) to the FIWARE Orion-LD context broker, one NGSI-LD entity per body: `urn:ngsi-ld:ErgoData:<body_id>`. The scores are merged into each `ergo_data` sample, so a score can be at most one calculation cycle older than the angles next to it.
 
 Every ergonomic topic is per person, following the ROS4HRI conventions — see [ROS4HRI conventions](#ros4hri-conventions).
@@ -117,6 +128,8 @@ Launch arguments:
 | `use_rviz` | `true` | Set to `false` to skip RViz2 — required on headless hosts with no X11 session. |
 | `use_camera` | `true` | Set to `false` to skip the RealSense driver and feed the detector from something else (a rosbag, or a video republished on `/camera/camera/color/image_raw`, `.../color/camera_info`, `/camera/camera/aligned_depth_to_color/image_raw` and `.../aligned_depth_to_color/camera_info`). |
 | `use_orion` | `true` | Set to `false` to skip `orion_bridge`, so a test does not write to Orion-LD. |
+| `single_body` | `true` | Follow **one person only**: `body_selector` picks the body nearest to the camera and the nodes follow `/humans/bodies/selected` instead of `/humans/bodies/tracked`; `orion_bridge` writes it to the single entity `urn:ngsi-ld:ErgoData:operator`, whatever id the tracker gives it. Set to `false` to follow everybody, one entity per tracker id (see [ROS4HRI conventions](#ros4hri-conventions)). |
+| `body_min_age` | `1.0` | Seconds a body id must be tracked before the ergonomic nodes act on it; raise it to filter ids that live for a fraction of a second. |
 | `use_llm` | `false` | Set to `true` to start `ergo_advisor` (see [Local LLM advisor](#local-llm-advisor-optional)). |
 
 ```bash
@@ -125,6 +138,34 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo.launch.py use_rviz:=false
 ```
 
 > **Optional debug check**: `ros2 topic echo /humans/bodies/tracked` lists the body ids currently tracked; then `ros2 topic echo /humans/bodies/<id>/ergo_data` (or `rula_score`, `reba_score`, `ergo_alert`) in a separate terminal inspects the live data of one person without affecting the running pipeline. Ids are random and change when the tracker loses someone and finds them again.
+
+### Posture measurement
+
+`hri_body_detect` fits a human URDF to each person, but its trunk and head joints are always 0 (upright) and its arms come from inverse kinematics on the wrist of a fixed-size body. `ergodata_calculator` therefore measures trunk, neck and arms itself ([posture_lib.py](components/ergo_pkg_py/lib/posture_lib.py)), from `/humans/bodies/<id>/skeleton2d` and the depth aligned to the colour image:
+
+| Angles | Measured from |
+|---|---|
+| Trunk flexion and side bending | pelvis and sternum (midpoints of hips and shoulders), back-projected with the depth |
+| Neck flexion and side bending, relative to the trunk | 2D face keypoints: nose below the line of the ears, slope of that line against the shoulders |
+| Arms: elevation, abduction, elbow, outline, midline, relative to the trunk | shoulder, elbow and wrist with the depth, bounded by the arm lengths |
+
+The angles are smoothed; a value missing for less than 2 s keeps the last one; impossible values are dropped. Without a measure (hips out of the image, face hidden for more than 2 s) the value comes from the detector's URDF, as before — for trunk and neck that means *upright*. Trunk twist, shoulder raise and wrists are not measured.
+
+**Requirements:** the person roughly faces the camera, with hips, shoulders and face in the image. Turned away, part of the flexion is read as side bending.
+
+**Neutral posture reference.** The measure has fixed offsets (camera tilt, the nose in front of the ears, depth of the body surface: standing upright the raw neck reads about 30°). They are measured once, on a person standing still, upright and facing the camera for 2 s, and subtracted from every posture:
+
+- the reference is [launch/posture_reference.json](launch/posture_reference.json) (`posture_reference_file` parameter), loaded at start — trunk and neck are measured from the first frame;
+- if the file is missing, the first person standing still sets it and it is saved (log: `Posture reference taken from body …, saved to …`); until then trunk and neck are the upright URDF values;
+- it belongs to the camera mounting: **after moving the camera**, delete the file and restart, or call
+
+  ```bash
+  ros2 service call /ergodata_calculator/recalibrate_posture std_srvs/srv/Trigger
+  ```
+
+  then have someone stand upright in front of the camera for a few seconds.
+
+**Scoring.** RULA scores arm abduction (arm raised at least 20° and pointing more to the side than forward) and muscle use: +1 when trunk, neck, arms and elbows stay within 15° for more than 1 minute (`rula_calculator`). Repeated actions, external load, coupling and REBA activity are not observable and stay neutral.
 
 ### ROS4HRI conventions
 
@@ -146,6 +187,8 @@ Like the ROS4HRI messages, every ergonomic message starts with a `std_msgs/Heade
 `speed` is how far `body_<body_id>` moved in the horizontal plane of a fixed frame since the previous cycle (mm per 0.1 s cycle). The body frame follows the person, so the fixed frame is a parameter of `ergodata_calculator`, `reference_frame` (default `camera_link`, which `hri_body_detect`'s camera frame hangs from); if that frame is not available, `speed` is 0 and the rest of the sample is still published.
 
 Every node follows `/humans/bodies/tracked` and creates or removes the per-body publishers and subscriptions as people come and go (a body is dropped after 2 s of absence, so a missed detection does not cause churn). Several people are therefore handled at once. A new id is acted upon only after it has been tracked for `body_min_age` seconds (parameter of every ergonomic node, default `1.0`; `0` reacts at first sight): a tracker can emit ids that live for a fraction of a second, and without the filter each one would create topics and an Orion entity for a person that was never there. On a test clip with two people walking, it cut the bodies created in 40 s from 21 to 10. The fixture's bodies therefore appear one second after launch. Upstream `hri_body_detect` follows several people at once, each under its own random id (the JOiiNT fork this project used before forced every track to `default`, so only one person could be followed). Its ids are not stable: on short test clips the tracker lost and re-created a person every few seconds, so in a real shift expect a new entity whenever someone leaves the view and returns. The test fixture can simulate several people (`body_ids` below).
+
+**One person at a time (`single_body`, default).** Because those ids change, one operator in front of the camera would otherwise leave a trail of Orion entities and CrateDB `entity_id`s. `body_selector` ([body_selector_node.py](components/ergo_pkg_py/ergo_pkg_py/body_selector_node.py)) reads `/humans/bodies/tracked` and publishes on `/humans/bodies/selected` a list with at most one id: the body nearest to the camera (distance of `body_<id>` from `reference_frame`, default `camera_link`). It keeps that body for as long as it stays tracked, and picks again only when it has been gone for more than `switch_timeout` seconds (default 2); a choice is made once the candidates have been there for `settle_time` (0.5 s), so their tf frames have arrived. The ergonomic nodes take their ids from the `tracked_topic` parameter, and `orion_bridge` has `entity_name`: `arise_ergo.launch.py` sets them to `/humans/bodies/selected` and `operator`. The upstream detector is not touched. A second person in view is ignored unless they are nearer than the one followed when it is lost; with `single_body:=false` every tracked id gets its own topics and entity, as before.
 
 `orion_bridge` also subscribes to `rula_score`, `reba_score` and `ergo_alert` of every body, to mirror them into Orion-LD next to the angles. Body ids are transient tracks. Moving the topics to the person namespace (`/humans/persons/<person_id>/`, stable identity across a shift) would require a person manager such as `hri_person_manager` in the pipeline.
 
@@ -183,6 +226,9 @@ ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py use_rviz:=
 
 # Three simulated people, each one posture ahead of the previous
 ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py "body_ids:=['a', 'b', 'c']"
+
+# The same three people, but follow only the nearest: one Orion entity, `operator`
+ros2 launch /home/ros_user/catkin_ws/launch/arise_ergo_test.launch.py "body_ids:=['a', 'b', 'c']" single_body:=true
 ```
 
 The fixture publishes the body ids on `/humans/bodies/tracked` and, for each body, the 15 `<link>_<body_id>` tf frames the calculator looks up, cycling through six postures (6s each, `posture_duration` parameter) chosen to cross the alert thresholds. As in REP-155, each `body_<body_id>` frame has its origin between the hips and is parented to the camera frame (`camera_link`), 2.5 m in front of it; walking in place moves the body frame itself, like a real tracker. The joint angles it produces are exact by construction, and every angle is kept a few degrees away from the RULA/REBA band limits, so the scores below are a reliable regression check:
@@ -192,11 +238,15 @@ The fixture publishes the body ids on `/humans/bodies/tracked` and, for each bod
 | neutral standing | 0 | 180 | 5 | 5 | 0 | 2 | 1 |
 | arms forward 60° | 0 | 120 | 30 | 5 | 0 | 3 | 2 |
 | arms overhead | 0 | 20 | 20 | 5 | 0 | 3 | 3 |
-| bent 70° reaching | 70 | 70 | 50 | 5 | 0 | **5** | 5 |
+| bent 70° reaching | 70 | 70 | 50 | 5 | 0 | **5** | 4 |
 | trunk twisted | 25 | 130 | 45 | 5 | 0 | 4 | 4 |
-| walking in place | 10 | 170 | 25 | 5 | up to ~19 | 2 | 2 |
+| walking in place | 10 | 170 | 25 | 5 | up to ~19 | 2 | 1 |
 
 Note the pipeline's convention: `left_arm_angle` is the angle between the upper arm and the spine, so **180° means the arm hangs at rest** and small values mean it is raised overhead. `bent 70° reaching` (trunk flexed 70°, arm reaching forward) is the posture that pushes RULA to 5 and makes `ergo_alert` publish its `warning` level, so it is the one to watch when checking that the alert path works.
+
+The fixture publishes no `skeleton2d` and no depth, so `ergodata_calculator` uses the tf values for every angle (the [posture measurement](#posture-measurement) is not exercised), and the postures change every 6 s, so RULA muscle use never applies.
+
+> Until 2026-10-09 the table read REBA 5 for `bent 70° reaching` and 2 for `walking in place`: `neck_bending_angle` was read with the wrong convention and added a neck side-bending point to every posture.
 
 > An earlier version of this fixture had a neck angle of exactly 0° and several angles exactly on band limits (trunk 20°, elbow 60°…). RULA/REBA read a negative neck angle as extension, so floating-point noise decided the scores — the "RULA 6" once documented for a 45° trunk bend came from that noise, not from the posture.
 
@@ -266,7 +316,7 @@ Every panel reads the `etergodata` table from [section 6](#6-verify-data-in-crat
 
 > **Note**: pressing **Save & test** on the CrateDB data source reports an error — CrateDB's SQL parser rejects the probe statement Grafana sends. It is cosmetic: the panel queries themselves work (verified through Grafana's query API against a live `etergodata` table).
 
-> **One entity per body**: each tracked body is a separate NGSI-LD entity (`urn:ngsi-ld:ErgoData:<body_id>`), i.e. a separate `entity_id` in `etergodata`. Pick it with the **Body** selector at the top of the dashboard; every panel is filtered on it.
+> **One entity per body**: each tracked body is a separate NGSI-LD entity (`urn:ngsi-ld:ErgoData:<body_id>`), i.e. a separate `entity_id` in `etergodata`; with `single_body` (default) there is only `urn:ngsi-ld:ErgoData:operator`. Pick it with the **Body** selector at the top of the dashboard; every panel is filtered on it.
 
 > **Scores and alerts in CrateDB**: next to the angles, `etergodata` has one column per RULA/REBA partial score (`rula_full`, `rula_trunk`, `rula_left_upper_arm`, `reba_full`, ...) and the alert state (`alert_level`: 0 OK, 1 warning, 2 critical; `alert_description`). QuantumLeap adds the columns on its own the first time Orion sends them, so rows written before that have them empty. The advisor texts (`ergo_advice`) are still ROS2-only.
 
@@ -278,14 +328,18 @@ Every panel reads the `etergodata` table from [section 6](#6-verify-data-in-crat
 RealSense Camera
       │
       ▼
-realsense2_camera (ROS2)
-      │
-      ▼
-hri_body_detect  ──►  RViz2 (visualization)
-      │  /humans/bodies/tracked + tf: <link>_<id> frames rel. to body_<id>
-      ▼
-ergodata_calculator          (all topics below are per body:
-      │  ergo_data            /humans/bodies/<id>/...)
+realsense2_camera (ROS2) ── aligned depth ──────────────┐
+      │                                                 │
+      ▼                                                 │
+hri_body_detect  ──►  RViz2 (visualization)             │
+      │  /humans/bodies/tracked, skeleton2d             │
+      │  + tf: <link>_<id> frames rel. to body_<id>     │
+      ▼                                                 │
+body_selector (single_body) ── /humans/bodies/selected  │
+      ▼                                                 │
+ergodata_calculator ◄───────────────────────────────────┘
+      │  ergo_data            (all topics below are per body:
+      │                        /humans/bodies/<id>/...)
       ├──────────────┬──────────────┐
       ▼              ▼              ▼
 rula_calculator  reba_calculator  orion_bridge

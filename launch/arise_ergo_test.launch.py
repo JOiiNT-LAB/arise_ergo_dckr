@@ -10,8 +10,9 @@ import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 
@@ -40,6 +41,32 @@ def generate_launch_description():
         description="ROS4HRI body ids simulated by the fixture, e.g. \"['a', 'b']\" "
                     "to test several people at once")
 
+    body_min_age = DeclareLaunchArgument(
+        'body_min_age',
+        default_value='1.0',
+        description='Seconds a body id must be tracked before the ergonomic nodes act on it')
+
+    single_body = DeclareLaunchArgument(
+        'single_body',
+        default_value='false',
+        description='Follow one body only (body_selector: the nearest to the camera) and '
+                    'write it to the single Orion entity urn:ngsi-ld:ErgoData:operator, '
+                    'as arise_ergo.launch.py does by default')
+    is_single_body = PythonExpression(["'", LaunchConfiguration('single_body'), "' == 'true'"])
+
+    body_selector = Node(
+        package='ergo_pkg_py',
+        executable='body_selector',
+        name='body_selector',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('single_body')))
+
+    min_age_params = [{
+        'body_min_age': ParameterValue(LaunchConfiguration('body_min_age'), value_type=float),
+        'tracked_topic': ParameterValue(
+            PythonExpression(["'/humans/bodies/selected' if ", is_single_body,
+                              " else '/humans/bodies/tracked'"]), value_type=str)}]
+
     fake_body = ExecuteProcess(
         cmd=['python3', os.path.join(THIS_DIR, 'fake_body_publisher.py'),
              '--ros-args', '-p', ['body_ids:=', LaunchConfiguration('body_ids')]],
@@ -61,30 +88,35 @@ def generate_launch_description():
         package='ergo_pkg_py',
         executable='ergodata_calculator',
         name='ergodata_calculator',
+        parameters=min_age_params,
         output='screen')
 
     rula_calculator = Node(
         package='ergo_pkg_py',
         executable='rula_calculator',
         name='rula_calculator',
+        parameters=min_age_params,
         output='screen')
 
     reba_calculator = Node(
         package='ergo_pkg_py',
         executable='reba_calculator',
         name='reba_calculator',
+        parameters=min_age_params,
         output='screen')
 
     ergo_alert = Node(
         package='ergo_pkg_py',
         executable='ergo_alert',
         name='ergo_alert',
+        parameters=min_age_params,
         output='screen')
 
     ergo_advisor = Node(
         package='ergo_pkg_py',
         executable='ergo_advisor',
         name='ergo_advisor',
+        parameters=min_age_params,
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_llm')))
 
@@ -92,6 +124,10 @@ def generate_launch_description():
         package='ergo_pkg_py',
         executable='orion_bridge',
         name='orion_bridge',
+        parameters=min_age_params + [{
+            'entity_name': ParameterValue(
+                PythonExpression(["'operator' if ", is_single_body, " else ''"]),
+                value_type=str)}],
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_orion')))
 
@@ -100,7 +136,10 @@ def generate_launch_description():
         use_llm,
         use_orion,
         body_ids,
+        body_min_age,
+        single_body,
         fake_body,
+        body_selector,
         rviz,
         ergodata_calculator,
         rula_calculator,

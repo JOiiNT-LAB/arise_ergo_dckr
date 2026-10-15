@@ -7,10 +7,11 @@ from launch.actions import (DeclareLaunchArgument, EmitEvent, IncludeLaunchDescr
 from launch.conditions import IfCondition
 from launch.events import matches_action
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import LifecycleNode, Node
 from launch_ros.event_handlers import OnStateTransition
 from launch_ros.events.lifecycle import ChangeState
+from launch_ros.parameter_descriptions import ParameterValue
 from lifecycle_msgs.msg import Transition
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -39,6 +40,36 @@ def generate_launch_description():
         default_value='false',
         description='Start ergo_advisor, which explains alerts with a local LLM '
                     '(needs the ollama service: docker compose --profile llm up -d)')
+
+    body_min_age = DeclareLaunchArgument(
+        'body_min_age',
+        default_value='1.0',
+        description='Seconds a body id must be tracked before the ergonomic nodes act on '
+                    'it. Raise it to stop short-lived tracker ids from creating entities')
+
+    single_body = DeclareLaunchArgument(
+        'single_body',
+        default_value='true',
+        description='Follow one person only, the body nearest to the camera (body_selector): '
+                    'the tracker may change their id, Orion keeps the single entity '
+                    'urn:ngsi-ld:ErgoData:operator. Set to false to follow everybody, '
+                    'one entity per tracker id')
+    is_single_body = PythonExpression(["'", LaunchConfiguration('single_body'), "' == 'true'"])
+
+    body_selector = Node(
+        package='ergo_pkg_py',
+        executable='body_selector',
+        name='body_selector',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('single_body')))
+
+    # Same value for every node that follows /humans/bodies/tracked: how long an id must
+    # live before it counts, and where the ids come from (the one selected body, or all).
+    min_age_params = [{
+        'body_min_age': ParameterValue(LaunchConfiguration('body_min_age'), value_type=float),
+        'tracked_topic': ParameterValue(
+            PythonExpression(["'/humans/bodies/selected' if ", is_single_body,
+                              " else '/humans/bodies/tracked'"]), value_type=str)}]
 
     realsense_camera = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -96,30 +127,48 @@ def generate_launch_description():
         package='ergo_pkg_py',
         executable='ergodata_calculator',
         name='ergodata_calculator',
+        # Trunk and neck are measured from skeleton2d and the aligned depth,
+        # relative to the neutral posture reference in posture_reference.json
+        # (next to this file). If the file is missing, the first person standing
+        # still, upright and facing the camera sets it. Delete the file (or
+        #   ros2 service call /ergodata_calculator/recalibrate_posture std_srvs/srv/Trigger)
+        # after moving the camera.
+        parameters=min_age_params + [{
+            'posture_reference_file': '/home/ros_user/catkin_ws/launch/posture_reference.json'}],
+        remappings=[
+            ('depth_image', '/camera/camera/aligned_depth_to_color/image_raw'),
+            ('depth_info', '/camera/camera/aligned_depth_to_color/camera_info')],
         output='screen')
 
     rula_calculator = Node(
         package='ergo_pkg_py',
         executable='rula_calculator',
         name='rula_calculator',
+        parameters=min_age_params,
         output='screen')
 
     reba_calculator = Node(
         package='ergo_pkg_py',
         executable='reba_calculator',
         name='reba_calculator',
+        parameters=min_age_params,
         output='screen')
 
     ergo_alert = Node(
         package='ergo_pkg_py',
         executable='ergo_alert',
         name='ergo_alert',
+        # critical_threshold 6 instead of RULA's 7 (act immediately): wrist,
+        # shoulder raise and load are not measured, so the arm score rarely
+        # gets high enough for a 7.
+        parameters=min_age_params + [{'critical_threshold': 6}],
         output='screen')
 
     ergo_advisor = Node(
         package='ergo_pkg_py',
         executable='ergo_advisor',
         name='ergo_advisor',
+        parameters=min_age_params,
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_llm')))
 
@@ -127,6 +176,10 @@ def generate_launch_description():
         package='ergo_pkg_py',
         executable='orion_bridge',
         name='orion_bridge',
+        parameters=min_age_params + [{
+            'entity_name': ParameterValue(
+                PythonExpression(["'operator' if ", is_single_body, " else ''"]),
+                value_type=str)}],
         output='screen',
         condition=IfCondition(LaunchConfiguration('use_orion')))
 
@@ -135,10 +188,13 @@ def generate_launch_description():
         use_camera,
         use_orion,
         use_llm,
+        body_min_age,
+        single_body,
         realsense_camera,
         body_detect,
         configure_body_detect,
         activate_body_detect,
+        body_selector,
         rviz,
         ergodata_calculator,
         rula_calculator,
