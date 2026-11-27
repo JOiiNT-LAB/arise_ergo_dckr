@@ -69,9 +69,11 @@ subscription after three failed notifications (e.g. QuantumLeap restarting) and
 never resumes it, so data silently stops reaching CrateDB. `inject.sh` now waits
 for QuantumLeap (`/version`) and, on `409`, resumes a paused subscription.
 
-**One person at a time (`single_body`).** Because the tracker ids change, one
-operator in front of the camera left a trail of Orion entities and CrateDB
-`entity_id`s. `body_selector` publishes on `/humans/bodies/selected` at most one id,
+**One person at a time (`single_body`).** The intended scenario is one operator, always
+at the same workstation, who now and then leaves the view and comes back. Because the
+tracker ids change, one operator in front of the camera left a trail of Orion entities
+and CrateDB `entity_id`s, and Grafana showed many instances for one person; one entity
+is the design choice, not a workaround. `body_selector` publishes on `/humans/bodies/selected` at most one id,
 the body nearest to the camera, kept while it stays tracked (a new choice after
 `switch_timeout`, 2 s); the ergonomic nodes read it (`tracked_topic`) and
 `orion_bridge` writes to the single entity `operator` (`entity_name`). With

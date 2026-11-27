@@ -1,0 +1,16 @@
+{
+  "neutral_posture": [
+    1.5,
+    -0.5,
+    32.2,
+    0.8
+  ],
+  "angles": [
+    "trunk_flexion",
+    "trunk_side_bending",
+    "neck_flexion",
+    "neck_side_bending"
+  ],
+  "body": "rpxci",
+  "date": "2026-10-09T18:44:33"
+}
